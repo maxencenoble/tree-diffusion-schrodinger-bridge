@@ -1,0 +1,69 @@
+# @package _global_
+
+# data 
+Dataset: stackedmnist
+datasets: [mnist6, mnist9]
+data_root: none
+load_data: False
+data:
+  dataset: "Stacked_MNIST"
+  image_size: 28
+  channels: 1
+
+# Barycenter
+barycenter_weights: [0.5, 0.5]
+
+# OT regularization
+epsilon: 0.5
+n_ipf: 10
+start_n_ipf: 0
+
+# device
+device: mps
+dataparallel: True
+num_workers: 8
+pin_memory: True
+
+# global training
+n_back_and_return: 0
+
+# training
+mean_match: True
+cache_npar: 100
+num_cache_batches: 10
+cache_refresh_stride: 500
+ema: True
+ema_rate: 0.999
+grad_clipping: False
+grad_clip: 1.0
+batch_size: 256
+num_iter: 30000
+lr: 0.0001
+
+# schedule
+num_steps: 50
+gamma_min: 0.00001
+gamma_space: linspace
+
+# plot and save
+plot: True
+plot_npar: 100
+save_stride: 1
+log_stride: 10
+gif_stride: ${num_iter}
+
+
+# checkpoints for model
+checkpoint_run: False
+checkpoints_dir: '../../../../../checkpoints_model/stackedmnist_2datasets'
+
+checkpoint_f: "" # EXAMPLE: 'net_f_i_30000.ckpt'
+checkpoint_b: "" # EXAMPLE: 'net_b_i_30000.ckpt'
+
+sample_checkpoint_f: "" # EXAMPLE: 'sample_net_f_i_30000.ckpt'
+sample_checkpoint_b: "" # EXAMPLE: 'sample_net_b_i_30000.ckpt'
+
+# checkpoints for data at the root of the tree
+data_root_load: False
+data_root_path: '../../../../../checkpoints_data/stackedmnist_2datasets/...'
+

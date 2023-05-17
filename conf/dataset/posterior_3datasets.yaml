@@ -1,0 +1,64 @@
+# @package _global_
+
+Dataset: posterior
+name_data: wine-homogeneous
+# name_data: wine-homogeneous
+# name_data: wine-heterogeneous
+seed_data: 1
+datasets: [1, 2, 3] # DO NOT CHANGE
+dim: 42
+# dim has to correspond to the sample dimension of name_data
+data_root: none
+
+# Barycenter
+barycenter_weights: [0.333, 0.333, 0.333]
+
+# OT regularization
+epsilon: 0.5
+n_ipf: 10
+start_n_ipf: 0
+
+# device
+device: cpu
+dataparallel: True
+num_workers: 8
+pin_memory: False
+
+# global training
+n_back_and_return: 0
+
+# training on each edge
+mean_match: False
+cache_npar: 990
+num_cache_batches: 10
+# there are 9900 MCMC samples for wine (see data_posterior.py)
+cache_refresh_stride: 500
+ema: False
+ema_rate: 0.999
+grad_clipping: False
+grad_clip: 1.0
+batch_size: 4096
+num_iter : 20000
+lr: 0.0001
+
+# schedule on each edge
+num_steps : 50
+gamma_min: 0.00001
+gamma_space: linspace
+
+# plot and save
+plot: False
+plot_npar: 100
+save_stride: 1
+log_stride: 50
+
+# checkpoints for model
+checkpoint_run: False
+checkpoints_dir: '../../../../../checkpoints_model/posterior_3datasets'
+
+checkpoint_f: "" # EXAMPLE: 'net_f_i_20000.ckpt'
+checkpoint_b: "" # EXAMPLE: 'net_b_i_20000.ckpt'
+
+# load some data on the root at the initialisation
+data_root_load: False
+data_root_path: '../../../../../checkpoints_data/posterior_3datasets/...'

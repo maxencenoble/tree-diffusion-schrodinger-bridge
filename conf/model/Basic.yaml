@@ -1,0 +1,9 @@
+# @package _global_
+
+Model : Basic
+model:
+    time_emb_dim: 32
+    encoder_dim_1: 128
+    encoder_dim_2: 256
+    decoder_dim_1: 256
+    decoder_dim_2: 64

@@ -1,0 +1,69 @@
+# @package _global_
+
+Dataset: 2d
+datasets: [moon, circle]
+data_root: moon
+# data_root has to be one of the datasets
+dim: 2
+scaling_factor: 7.
+
+# Bridge
+edge_weight: 0.5
+
+# OT regularization
+epsilon: 0.2
+n_ipf: 20
+start_n_ipf: 0
+
+# device
+device: cpu
+dataparallel: True
+num_workers: 8
+pin_memory: False
+
+# global training
+n_back_and_return: 0
+
+# training on each edge
+mean_match: False
+npar: 10000
+cache_npar: 1000
+num_cache_batches: 10
+cache_refresh_stride: 500
+ema: False
+ema_rate: 0.999
+grad_clipping: False
+grad_clip: 1.0
+batch_size: 4096
+num_iter : 15000
+lr: 0.0001
+
+# schedule on each edge
+num_steps : 50
+gamma_min: 0.00001
+gamma_space: linspace
+
+# plot and save
+plot: True
+plot_npar: 5000
+plot_freq: ${num_steps}
+plot_particle: False
+plot_trajectory: False
+plot_registration: False
+plot_density: True
+plot_density_smooth: True
+save_stride: 1
+log_stride: 50
+gif_stride: ${num_iter}
+
+# checkpoints for model
+checkpoint_run: False
+checkpoints_dir: '../../../../../checkpoints_model/2d_bridge'
+
+checkpoint_f: "" # EXAMPLE: 'net_f_i_15000.ckpt'
+checkpoint_b: "" # EXAMPLE: 'net_b_i_15000.ckpt'
+
+# checkpoints for data at the root of the tree
+data_root_load: False
+data_root_path: '../../../../../checkpoints_data/2d_bridge/...'
+

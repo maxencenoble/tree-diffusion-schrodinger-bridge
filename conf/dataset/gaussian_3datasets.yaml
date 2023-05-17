@@ -1,0 +1,62 @@
+# @package _global_
+
+Dataset: gaussian
+datasets: [1, 2, 3]
+# datasets: [1, 2, 3]
+# datasets: [11, 22, 33]
+# datasets: [111, 222, 333]
+data_root: none
+dim: 256
+
+# Barycenter
+barycenter_weights: [0.333, 0.333, 0.333]
+
+# OT regularization
+epsilon: 0.2
+n_ipf: 10
+start_n_ipf: 0
+
+# device
+device: cpu
+dataparallel: True
+num_workers: 8
+pin_memory: False
+
+# global training
+n_back_and_return: 0
+
+# training on each edge
+mean_match: False
+npar: 10000
+cache_npar: 1000
+num_cache_batches: 10
+cache_refresh_stride: 500
+ema: False
+ema_rate: 0.999
+grad_clipping: False
+grad_clip: 1.0
+batch_size: 4096
+num_iter : 15000
+lr: 0.0001
+
+# schedule on each edge
+num_steps : 50
+gamma_min: 0.00001
+gamma_space: linspace
+
+# plot and save
+plot: False
+plot_npar: 100
+save_stride: 1
+log_stride: 50
+
+# checkpoints for model
+checkpoint_run: False
+checkpoints_dir: '../../../../../checkpoints_model/gaussian_3datasets'
+
+checkpoint_f: "" # EXAMPLE: 'net_f_i_15000.ckpt'
+checkpoint_b: "" # EXAMPLE: 'net_b_i_15000.ckpt'
+
+# load some data on the root at the initialisation
+data_root_load: False
+data_root_path: '../../../../../checkpoints_data/gaussian_3datasets/...'
