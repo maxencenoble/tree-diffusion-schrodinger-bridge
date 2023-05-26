@@ -1,5 +1,7 @@
 # Tree Diffusion Schr&ouml;dinger Bridge
 
+This is the official code for the paper 'Tree-Based Diffusion Schr&ouml;dinger Bridge with Applications to Wasserstein Barycenters'
+
 Contributors
 ------------
 
@@ -13,7 +15,7 @@ This project can be installed from its git repository.
 
 1. Obtain the sources by:
 
-   `git clone git@github.com:...`
+   `git clone git@github.com:maxencenoble/tree-diffusion-schrodinger-bridge.git`
 
 You may modify `requirements.txt` according to your CUDA version.
 
