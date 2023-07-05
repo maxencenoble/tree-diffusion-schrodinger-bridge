@@ -36,7 +36,7 @@ schedule_SDE: zero
 #    - zero: classic Langevin dynamics
 coeff_schedule_SDE: 0.95
 #    - if cosine: strength of the cosine schedule (>0)
-#    - if binary: strength of the binary schedule (bteween 0 and 1)
+#    - if binary: strength of the binary schedule (between 0 and 1)
 
 # starting leaf seed
 starting_leaf_seed: 0
@@ -45,6 +45,6 @@ starting_leaf_seed: 0
 loss_weight: 0.
 
 # predictor/corrector
-num_corrector_steps: 0
-start_corrector: 3 # number of first iterations without corrector
+num_corrector_steps: 1
+start_corrector: 1 # number of first iterations without corrector
 snr: 0.05 # signal-to-noise ratio

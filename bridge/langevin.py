@@ -91,15 +91,16 @@ class Langevin(torch.nn.Module):
 
                 for _ in range(num_corrector_steps):
                     z = torch.randn(x.shape, device=x.device)
-                    z_norm = z.reshape(N, -1).norm(dim=1).mean()
+                    z_norm = z.reshape(N, -1).norm(dim=1)
 
                     score = 0.5 * (forward_net(x, steps[:, k_, :]) + backward_net(x, self.time[-1] - steps[:, k_, :]))
-                    score_norm = score.reshape(N, -1).norm(dim=1).mean()
+                    score_norm = score.reshape(N, -1).norm(dim=1)
 
                     eps = 2 * (self.snr / score_norm) ** 2
                     eps = eps * (z_norm ** 2)
+                    eps = eps.reshape(-1, 1)
 
-                    x = (1 - eps) * x + eps * score + torch.sqrt(2 * eps * gamma_) * z
+                    x = (1 - eps) * x + gamma_ * eps * score + gamma_ * torch.sqrt(2 * eps) * z
 
                 t_new = forward_net(x, steps[:, k, :])
                 x_tot[:, k, :] = x
@@ -124,15 +125,16 @@ class Langevin(torch.nn.Module):
 
                 for _ in range(num_corrector_steps):
                     z = torch.randn(x.shape, device=x.device)
-                    z_norm = z.reshape(N, -1).norm(dim=1).mean()
+                    z_norm = z.reshape(N, -1).norm(dim=1)
 
                     score = 0.5 * (forward_net(x, steps[:, k_, :]) + backward_net(x, self.time[-1] - steps[:, k_, :]))
-                    score_norm = score.reshape(N, -1).norm(dim=1).mean()
+                    score_norm = score.reshape(N, -1).norm(dim=1)
 
                     eps = 2 * (self.snr / score_norm) ** 2
                     eps = eps * (z_norm ** 2)
+                    eps = eps.reshape(-1, 1)
 
-                    x = x + eps * score + torch.sqrt(2 * eps * gamma_) * z
+                    x = x + gamma_ * eps * score + gamma_ * torch.sqrt(2 * eps) * z
 
                 t_new = x + forward_net(x, steps[:, k, :])
                 x_tot[:, k, :] = x
@@ -181,15 +183,16 @@ class Langevin(torch.nn.Module):
 
                 for _ in range(num_corrector_steps):
                     z = torch.randn(x.shape, device=x.device)
-                    z_norm = z.reshape(N, -1).norm(dim=1).mean()
+                    z_norm = z.reshape(N, -1).norm(dim=1)
 
                     score = 0.5 * (forward_net(x, steps[:, k_, :]) + backward_net(x, self.time[-1] - steps[:, k_, :]))
-                    score_norm = score.reshape(N, -1).norm(dim=1).mean()
+                    score_norm = score.reshape(N, -1).norm(dim=1)
 
                     eps = 2 * (self.snr / score_norm) ** 2
                     eps = eps * (z_norm ** 2)
+                    eps = eps.reshape(-1, 1)
 
-                    x = (1 - eps) * x + eps * score + torch.sqrt(2 * eps * gamma_) * z
+                    x = (1 - eps) * x + gamma_ * eps * score + gamma_ * torch.sqrt(2 * eps) * z
 
                 x_tot[:, k, :] = x
 
@@ -212,15 +215,16 @@ class Langevin(torch.nn.Module):
 
                 for _ in range(num_corrector_steps):
                     z = torch.randn(x.shape, device=x.device)
-                    z_norm = z.reshape(N, -1).norm(dim=1).mean()
+                    z_norm = z.reshape(N, -1).norm(dim=1)
 
                     score = 0.5 * (forward_net(x, steps[:, k_, :]) + backward_net(x, self.time[-1] - steps[:, k_, :]))
-                    score_norm = score.reshape(N, -1).norm(dim=1).mean()
+                    score_norm = score.reshape(N, -1).norm(dim=1)
 
                     eps = 2 * (self.snr / score_norm) ** 2
                     eps = eps * (z_norm ** 2)
+                    eps = eps.reshape(-1, 1)
 
-                    x = x + eps * score + torch.sqrt(2 * eps * gamma_) * z
+                    x = x + gamma_ * eps * score + gamma_ * torch.sqrt(2 * eps) * z
 
                 x_tot[:, k, :] = x
 
