@@ -678,7 +678,8 @@ class IPFBase(torch.nn.Module):
         self.T = torch.sum(gammas)  # to avoid float errors
         print('Empirical value for T: {:.6f}'.format(2 * self.T))
 
-        self.langevin.gammas = gammas
+        self.langevin.gammas = gammas.float()
+        self.langevin.time = torch.cumsum(self.langevin.gammas, 0).to(self.langevin.device).float()
 
     def update_cacheloaders(self, init_cache_dl, sample_direction, n, first_pass_on_edge, use_ema=True):
         """Returns the cache training dataloader and the cache dataloader of the next vertex to visit."""
