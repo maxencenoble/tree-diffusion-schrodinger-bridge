@@ -205,7 +205,7 @@ class IPFTree(torch.nn.Module):
         del batch
         self.clear()
 
-    def save_along_reversed_path(self, rev_path_queue, n, i, dynamics='sde'):
+    def save_along_reversed_path(self, rev_path_queue, n, i, dynamics='sde', test_with_corrector=False):
         """Saves the plots from sampling along the edges of rev_path_queue."""
         rev_path_queue = deque(rev_path_queue)
         source_sample_index = rev_path_queue.popleft()
@@ -214,14 +214,14 @@ class IPFTree(torch.nn.Module):
             current_rev_edge = self.tree.graph[dest_sample_index].edges[source_sample_index]
             sample_direction = 'b' if current_rev_edge.direction == 'f' else 'f'
             if dynamics == 'sde':
-                current_rev_edge.ipf.ipf_save_with_sde(sample_direction, n, i)
+                current_rev_edge.ipf.ipf_save_with_sde(sample_direction, n, i, test_with_corrector)
                 if not self.tree.graph[dest_sample_index].vertex.data:
                     self.tree.graph[dest_sample_index].vertex.save_dl_sde = current_rev_edge.ipf.next_dic_sde['save_dl']
                 del current_rev_edge
             self.clear()
             source_sample_index = dest_sample_index
 
-    def save_along_forward_path(self, path_queue, n, i, dynamics='ode'):
+    def save_along_forward_path(self, path_queue, n, i, dynamics='ode', test_with_corrector=False):
         """Saves the plots from sampling along the edges of path_queue."""
         path_queue = deque(path_queue)
         source_sample_index = path_queue.popleft()
@@ -230,7 +230,7 @@ class IPFTree(torch.nn.Module):
             current_edge = self.tree.graph[source_sample_index].edges[dest_sample_index]
             sample_direction = current_edge.direction
             if dynamics == 'ode':
-                current_edge.ipf.ipf_save_with_ode(sample_direction, n, i)
+                current_edge.ipf.ipf_save_with_ode(sample_direction, n, i, test_with_corrector)
                 if not self.tree.graph[dest_sample_index].vertex.data:
                     self.tree.graph[dest_sample_index].vertex.save_dl_ode = current_edge.ipf.next_dic_ode['save_dl']
                 del current_edge
@@ -392,7 +392,53 @@ class IPFTreeSequential(IPFTree):
             self.tree.change_root(all_leaves[0])
             print('**********************************************************************************')
 
-    def train_one_stage(self):
+    def test_ipf_tree(self, epsilon, k_epsilon=1):
+        # Prepare the IPF edges
+        for vertex, vertex_node in enumerate(self.tree.graph):
+            for j in vertex_node.edges.keys():
+                print('Edge from {source} to {dest}'.format(source=vertex, dest=j))
+                self.tree.graph[vertex].edges[j].ipf.set_time_horizon(epsilon, k_epsilon)
+                print('*****************************************************************')
+        print('\n\n')
+
+        leaves = list(self.tree.get_leaves())
+        if not self.tree.graph[0].vertex.data:
+            leaf_queue = deque(leaves)
+            next_leaf_index = leaf_queue.popleft()
+            self.tree.change_root(next_leaf_index)
+
+        # At this point, the root of the tree is also a leaf
+        leaves = list(self.tree.get_leaves())
+        leaf_queue = deque(leaves)
+        count_leaves = 0
+        while count_leaves < self.nb_datasets:
+            current_leaf_index = self.tree.get_root()
+            next_leaf_index = leaf_queue.popleft()
+            path_between_leaves = self.tree.find_path(current_leaf_index, next_leaf_index)
+
+            reversed_path = path_between_leaves.copy()
+            reversed_path.reverse()
+
+            if self.args.plot_SDE:
+                print('SDE: Sampling from {leaf} to {root}.'.format(root=current_leaf_index,
+                                                                    leaf=next_leaf_index))
+                self.save_along_reversed_path(reversed_path, 0, 0,
+                                              test_with_corrector=self.args.test_with_corrector)
+            if self.args.plot_ODE:
+                print('ODE: Sampling from {root} to {leaf}.'.format(root=current_leaf_index,
+                                                                    leaf=next_leaf_index))
+                self.save_along_forward_path(path_between_leaves, 0, 0,
+                                             test_with_corrector=self.args.test_with_corrector)
+
+            leaf_queue.append(current_leaf_index)
+            count_leaves += 1
+            self.tree.change_root(next_leaf_index)
+
+            # for Gaussian and posterior settings
+            if not self.tree.graph[0].vertex.data:
+                self.save_data_root(epsilon)
+
+    def train_model(self):
         # Prepare the root dataset
         init_samples = None
         if self.args.data_root_load:
@@ -403,6 +449,14 @@ class IPFTreeSequential(IPFTree):
                             n_ipf=self.n_ipf,
                             start_n_ipf=self.start_n_ipf,
                             k_epsilon=1)
+
+    def test_model(self):
+        assert self.args.checkpoint_run, 'Specify checkpoint models.'
+        # Prepare the root dataset
+        if not self.tree.graph[0].vertex.data:
+            self.build_root_dataset(None)
+        self.test_ipf_tree(epsilon=self.args.epsilon,
+                           k_epsilon=1)
 
 
 class IPFBase(torch.nn.Module):
@@ -707,10 +761,10 @@ class IPFBase(torch.nn.Module):
 
         self.clear()
 
-    def ipf_save_with_sde(self, sample_direction, n, i):
+    def ipf_save_with_sde(self, sample_direction, n, i, test_with_corrector=False):
         """Saves the samples obtained on sample_direction by discretizing the SDE."""
         backward_direction = 'b' if sample_direction == 'f' else 'f'
-        corrector = n > self.args.start_corrector
+        corrector = n > self.args.start_corrector if not test_with_corrector else True
 
         if self.accelerator.is_local_main_process:
 
@@ -791,10 +845,10 @@ class IPFBase(torch.nn.Module):
             self.next_dic_sde = self.build_dataloader(dataset=TensorDataset(new_batch))
             del new_batch
 
-    def ipf_save_with_ode(self, sample_direction, n, i):
+    def ipf_save_with_ode(self, sample_direction, n, i, test_with_corrector=False):
         """Saves the samples obtained on sample_direction by discretizing the ODE."""
         backward_direction = 'b' if sample_direction == 'f' else 'f'
-        corrector = n > self.args.start_corrector
+        corrector = n > self.args.start_corrector if not test_with_corrector else True
         if self.accelerator.is_local_main_process:
 
             if self.args.ema:

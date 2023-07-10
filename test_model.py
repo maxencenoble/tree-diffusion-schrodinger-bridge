@@ -17,7 +17,7 @@ def main(args):
     tree = ipfTree.tree
     print(tree)
     ipfTree.populate_tree()
-    ipfTree.train_one_stage()
+    ipfTree.test_model()
 
 
 if __name__ == '__main__':
