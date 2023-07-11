@@ -22,10 +22,10 @@ paths:
 
 # saving dynamics with ODE
 plot_ODE: False
-schedule_ODE: cosine
+schedule_ODE: one
 #    - cosine: interpolation between Langevin dynamics and probability flow on a cosine schedule (SDE -> ODE)
 #    - one: only probability flow
-coeff_schedule_ODE: 16
+coeff_schedule_ODE: 8
 #    - if cosine: strength of the cosine schedule (>0)
 
 # saving dynamics with SDE
@@ -34,7 +34,7 @@ schedule_SDE: zero
 #    - cosine: Langevin dynamics with decreasing noise on a cosine schedule
 #    - binary: Langevin dynamics with decreasing noise on a binary schedule
 #    - zero: classic Langevin dynamics
-coeff_schedule_SDE: 0.95
+coeff_schedule_SDE: 8
 #    - if cosine: strength of the cosine schedule (>0)
 #    - if binary: strength of the binary schedule (between 0 and 1)
 
@@ -46,5 +46,6 @@ loss_weight: 0.
 
 # predictor/corrector
 num_corrector_steps: 1
-start_corrector: 1 # number of first iterations without corrector
+start_corrector: 1 # number of first iterations without corrector in train_model
+test_with_corrector: True # using corrector in test_model
 snr: 0.05 # signal-to-noise ratio

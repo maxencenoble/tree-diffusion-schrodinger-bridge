@@ -10,14 +10,14 @@ scaling_factor: 7.
 barycenter_weights: [0.333, 0.333, 0.333]
 
 # OT regularization
-epsilon: 0.2
+epsilon: 0.05
 n_ipf: 20
 start_n_ipf: 0
 
 # device
 device: cpu
 dataparallel: True
-num_workers: 8
+num_workers: 0
 pin_memory: False
 
 # global training
@@ -34,7 +34,7 @@ ema_rate: 0.999
 grad_clipping: False
 grad_clip: 1.0
 batch_size: 4096
-num_iter : 15000
+num_iter : 10000
 lr: 0.0001
 
 # schedule on each edge
@@ -56,12 +56,12 @@ log_stride: 50
 gif_stride: ${num_iter}
 
 # checkpoints for model
-checkpoint_run: False
-checkpoints_dir: '../../../../../checkpoints_model/2d_3datasets'
+checkpoint_run: True
+checkpoints_dir: '../../../../../checkpoints_model/2d_3datasets_epsilon=0.05'
 
-checkpoint_f: "net_f_20_15000.ckpt"
-checkpoint_b: "net_b_20_15000.ckpt"
+checkpoint_f: "net_f_35_10000.ckpt"
+checkpoint_b: "net_b_35_10000.ckpt"
 
 # load some data on the root at the initialisation
 data_root_load: False
-data_root_path: '../../../../../checkpoints_data/2d_3datasets/data_root_epsilon=0.200.pt'
+data_root_path: '../../../../../checkpoints_data/2d_3datasets/data_root_epsilon=0.050.pt'
