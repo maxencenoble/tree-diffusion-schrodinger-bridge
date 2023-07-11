@@ -98,7 +98,8 @@ class Langevin(torch.nn.Module):
 
                     eps = 2 * (self.snr / score_norm) ** 2
                     eps = eps * (z_norm ** 2)
-                    eps = eps.reshape(-1, 1)
+                    dims = [N] + (x[0].dim()) * [1]
+                    eps = eps.reshape(dims)
 
                     x = (1 - eps) * x + gamma_ * eps * score + gamma_ * torch.sqrt(2 * eps) * z
 
@@ -132,7 +133,8 @@ class Langevin(torch.nn.Module):
 
                     eps = 2 * (self.snr / score_norm) ** 2
                     eps = eps * (z_norm ** 2)
-                    eps = eps.reshape(-1, 1)
+                    dims = [N] + (x[0].dim()) * [1]
+                    eps = eps.reshape(dims)
 
                     x = x + gamma_ * eps * score + gamma_ * torch.sqrt(2 * eps) * z
 
@@ -190,7 +192,8 @@ class Langevin(torch.nn.Module):
 
                     eps = 2 * (self.snr / score_norm) ** 2
                     eps = eps * (z_norm ** 2)
-                    eps = eps.reshape(-1, 1)
+                    dims = [N] + (x[0].dim()) * [1]
+                    eps = eps.reshape(dims)
 
                     x = (1 - eps) * x + gamma_ * eps * score + gamma_ * torch.sqrt(2 * eps) * z
 
@@ -222,7 +225,8 @@ class Langevin(torch.nn.Module):
 
                     eps = 2 * (self.snr / score_norm) ** 2
                     eps = eps * (z_norm ** 2)
-                    eps = eps.reshape(-1, 1)
+                    dims = [N] + (x[0].dim()) * [1]
+                    eps = eps.reshape(dims)
 
                     x = x + gamma_ * eps * score + gamma_ * torch.sqrt(2 * eps) * z
 
