@@ -12,15 +12,17 @@ distributions, which is of main interest in Optimal Transport (OT).
 Illustration
 ------------
 
-Estimation of 2D densities (first row: OT reg=0.05) and approximation of their Wasserstein-2 barycenter obtained by diffusing
-from each leaf (second row: OT reg=0.05, third row: OT reg=0.1, fourth row: OT reg=0.2).
+Estimation of 2D densities (first row: OT reg=0.05) and approximation of their Wasserstein-2 barycenter obtained by
+diffusing from each leaf (second row: OT reg=0.05 with 35 IPF cycles, third row: OT reg=0.1 with 20 IPF cycles, fourth
+row: OT reg=0.2 with 20 IPF cycles). These plots are obtained without applying the Langevin corrector. Barycenter
+pictures are available with corrector 0.02 (see `./images`).
 
-| Swiss Roll                                                                                            | Circle                                                                                                  | Moons                                                                                                 |
-|-------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
-| ![swiss_f](images/2d_3datasets_epsilon=0.05/swiss_10000_f_35_sde_epsilon=0.050_eps1_density_49.png)   | ![circle_f](images/2d_3datasets_epsilon=0.05/circle_10000_f_35_sde_epsilon=0.050_eps1_density_49.png)   | ![moons_f](images/2d_3datasets_epsilon=0.05/moons_10000_f_35_sde_epsilon=0.050_eps1_density_49.png)   |
-| ![swiss_b_1](images/2d_3datasets_epsilon=0.05/swiss_10000_b_35_sde_epsilon=0.050_eps1_density_49.png) | ![circle_b_1](images/2d_3datasets_epsilon=0.05/circle_10000_b_35_sde_epsilon=0.050_eps1_density_49.png) | ![moons_b_1](images/2d_3datasets_epsilon=0.05/moons_10000_b_35_sde_epsilon=0.050_eps1_density_49.png) |
-| ![swiss_b_2](images/2d_3datasets_epsilon=0.1/swiss_10000_b_20_sde_epsilon=0.100_eps1_density_49.png)  | ![circle_b_2](images/2d_3datasets_epsilon=0.1/circle_10000_b_20_sde_epsilon=0.100_eps1_density_49.png)  | ![moons_b_2](images/2d_3datasets_epsilon=0.1/moons_10000_b_20_sde_epsilon=0.100_eps1_density_49.png)  |
-| ![swiss_b_3](images/2d_3datasets_epsilon=0.2/swiss_10000_b_20_sde_epsilon=0.200_eps1_density_49.png)  | ![circle_b_3](images/2d_3datasets_epsilon=0.2/circle_10000_b_20_sde_epsilon=0.200_eps1_density_49.png)  | ![moons_b_3](images/2d_3datasets_epsilon=0.2/moons_10000_b_20_sde_epsilon=0.200_eps1_density_49.png)  |
+| Swiss Roll                                                                                                    | Circle                                                                                                          | Moons                                                                                                         |
+|---------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
+| ![swiss_f](images/2d_3datasets_epsilon=0.05/swiss_0_f_0_sde_epsilon=0.050_eps1_density_49.png)                | ![circle_f](images/2d_3datasets_epsilon=0.05/circle_0_f_0_sde_epsilon=0.050_eps1_density_49.png)                | ![moons_f](images/2d_3datasets_epsilon=0.05/moons_0_f_0_sde_epsilon=0.050_eps1_density_49.png)                |
+| ![swiss_b_1](images/2d_3datasets_epsilon=0.05/no-corrector/swiss_0_b_0_sde_epsilon=0.050_eps1_density_49.png) | ![circle_b_1](images/2d_3datasets_epsilon=0.05/no-corrector/circle_0_b_0_sde_epsilon=0.050_eps1_density_49.png) | ![moons_b_1](images/2d_3datasets_epsilon=0.05/no-corrector/moons_0_b_0_sde_epsilon=0.050_eps1_density_49.png) |
+| ![swiss_b_2](images/2d_3datasets_epsilon=0.1/no-corrector/swiss_0_b_0_sde_epsilon=0.100_eps1_density_49.png)  | ![circle_b_2](images/2d_3datasets_epsilon=0.1/no-corrector/circle_0_b_0_sde_epsilon=0.100_eps1_density_49.png)  | ![moons_b_2](images/2d_3datasets_epsilon=0.1/no-corrector/moons_0_b_0_sde_epsilon=0.100_eps1_density_49.png)  |
+| ![swiss_b_3](images/2d_3datasets_epsilon=0.2/no-corrector/swiss_0_b_0_sde_epsilon=0.200_eps1_density_49.png)  | ![circle_b_3](images/2d_3datasets_epsilon=0.2/no-corrector/circle_0_b_0_sde_epsilon=0.200_eps1_density_49.png)  | ![moons_b_3](images/2d_3datasets_epsilon=0.2/no-corrector/moons_0_b_0_sde_epsilon=0.200_eps1_density_49.png)  |
 
 Contributors
 ------------
