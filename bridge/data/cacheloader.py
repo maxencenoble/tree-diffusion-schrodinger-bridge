@@ -35,7 +35,8 @@ class CacheLoader(Dataset):
         self.steps_data = torch.zeros(
             (self.num_batches, self.batch_size * self.num_steps, 1)).to(self.device)  # .cpu() # steps
 
-    def update_data(self, sample_net, backward_net, init_cache_dl, n, first_pass_on_edge):
+    def update_data(self, sample_net, backward_net, init_cache_dl, first_pass_on_edge, dynamics, corrector, schedule,
+                    coeff_schedule, sample):
         self.clear_data()
         torch.cuda.empty_cache()
 
@@ -46,14 +47,29 @@ class CacheLoader(Dataset):
                 batch = next(init_cache_dl)[0]
                 batch = batch.to(self.device)
 
-                if n < 2 and (not first_pass_on_edge):
+                if not first_pass_on_edge:
                     x, out, steps_expanded = self.langevin.record_init_langevin(batch, self.shape)
                 else:
-                    x, out, steps_expanded = self.langevin.record_langevin_seq(sample_net,
-                                                                               backward_net,
-                                                                               batch,
-                                                                               self.shape,
-                                                                               corrector=False)
+                    if dynamics == 'sde':
+                        x, out, steps_expanded = self.langevin.record_langevin_seq(sample_net,
+                                                                                   backward_net,
+                                                                                   batch,
+                                                                                   self.shape,
+                                                                                   corrector,
+                                                                                   schedule,
+                                                                                   coeff_schedule,
+                                                                                   sample)
+                    elif dynamics == 'ode':
+                        x, _, steps_expanded = self.langevin.record_ode_seq(sample_net,
+                                                                            backward_net,
+                                                                            batch,
+                                                                            self.shape,
+                                                                            corrector,
+                                                                            schedule,
+                                                                            coeff_schedule,
+                                                                            sample)
+                        # not used for training
+                        out = x
 
                 # store the last iterate
                 self.next_data[b] = x[:, -1, :]
