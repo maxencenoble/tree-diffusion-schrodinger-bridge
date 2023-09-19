@@ -13,6 +13,7 @@ import random
 from ..data import CacheLoader
 from ..data.gaussian import cov_ideal
 from ..data.utils_uvp import mean_cov_from_samples, BW2_UVP
+from ..data.utils import add_module_state_dict
 from accelerate import Accelerator
 from torch.utils.data import TensorDataset
 from collections import deque
@@ -28,11 +29,6 @@ DATASET_STACKEDMNIST = 'stackedmnist'
 
 TREE = 'Tree'
 BARYCENTER_TREE = 'Barycenter'
-
-
-# Make sure that the vertex 0 corresponds to the root in the original tree
-# Make sure you have a directed tree before beginning
-# Make sure you don't have any original dataset on the internal vertices
 
 
 class IPFTree(torch.nn.Module):
@@ -55,11 +51,81 @@ class IPFTree(torch.nn.Module):
         self.accelerator = Accelerator(fp16=False, cpu=args.device == 'cpu')
         self.device = self.accelerator.device  # torch.device(args.device)
 
+        # build general models
+        self.build_models()
+        self.build_ema()
+        self.save_init_model('f')
+        self.save_init_model('b')
+
     def tree_structure(self):
         return get_tree(self.args)
 
+    def build_models(self):
+        """Builds 2 neural networks (net_f and net_b) to approximate the SDE drifts on the edges of the tree:
+        - net_f is used for the forward direction w.r.t. to the orientation of the tree.
+        - net_b is used for the backward direction w.r.t. to the orientation of the tree."""
+        net_f, net_b = get_models(self.args)
+
+        if self.args.dataparallel:
+            net_f = torch.nn.DataParallel(net_f)
+            net_b = torch.nn.DataParallel(net_b)
+
+        net_f = net_f.to(self.device)
+        net_b = net_b.to(self.device)
+        self.net = torch.nn.ModuleDict({'f': net_f, 'b': net_b})
+
+        del net_f
+        del net_b
+        self.clear()
+
+    def update_ema(self, forward_or_backward):
+        self.ema_helpers[forward_or_backward] = EMAHelper(mu=self.args.ema_rate, device=self.device)
+        self.ema_helpers[forward_or_backward].register(self.net[forward_or_backward])
+
+    def build_ema(self):
+        """Builds 2 EMA instances (forward and backward) related to the models."""
+        self.ema_helpers = {}
+        self.sample_net = {}
+        if self.args.ema:
+            self.update_ema('f')
+            self.update_ema('b')
+            sample_net_f, sample_net_b = get_models(self.args)
+            if self.args.dataparallel:
+                sample_net_f = torch.nn.DataParallel(sample_net_f)
+                sample_net_b = torch.nn.DataParallel(sample_net_b)
+            sample_net_f = sample_net_f.to(self.device)
+            sample_net_b = sample_net_b.to(self.device)
+
+            self.sample_net = torch.nn.ModuleDict({'f': sample_net_f, 'b': sample_net_b})
+
+            del sample_net_f
+            del sample_net_b
+            self.clear()
+
+    def save_init_model(self, direction_to_save):
+        """Saves the initial NN models as initialization for the edges."""
+        dir = './'
+        name_net = 'net' + '_' + direction_to_save + '_init.ckpt'
+        name_net_ckpt = dir + name_net
+        if self.args.dataparallel:
+            torch.save(self.net[direction_to_save].module.state_dict(), name_net_ckpt)
+        else:
+            torch.save(self.net[direction_to_save].state_dict(), name_net_ckpt)
+
+        if self.args.ema:
+            name_sample_net = 'sample_net' + '_' + direction_to_save + '_init.ckpt'
+            name_sample_net_ckpt = dir + name_sample_net
+            sample_net = self.ema_helpers[direction_to_save].ema_copy(self.net[direction_to_save])
+            if self.args.dataparallel:
+                torch.save(sample_net.module.state_dict(), name_sample_net_ckpt)
+            else:
+                torch.save(sample_net.state_dict(), name_sample_net_ckpt)
+
+            del sample_net
+            self.clear()
+
     def populate_tree(self):
-        """Builds IPF objects on the edges and fills the dataloaders for the original datasets."""
+        """Builds IPF classes on the edges and fills the dataloaders for the original datasets."""
         for vertex, vertex_node in enumerate(self.tree.graph):
             for j in vertex_node.edges.keys():
                 weight = self.tree.graph[vertex].edges[j].weight
@@ -67,7 +133,10 @@ class IPFTree(torch.nn.Module):
                 self.tree.graph[vertex].edges[j].ipf = IPFSequential(self.args,
                                                                      weight,
                                                                      self.tree.graph[vertex].vertex,
-                                                                     self.tree.graph[j].vertex)
+                                                                     self.tree.graph[j].vertex,
+                                                                     self.net,
+                                                                     self.sample_net,
+                                                                     self.ema_helpers)
 
                 # get the cache_dl, save_dl (not None iff we have a dataset)
                 dic_v, dic_j = self.tree.graph[vertex].edges[j].ipf.build_dataloader_from_ipf()
@@ -120,9 +189,9 @@ class IPFTree(torch.nn.Module):
     def build_root_dataset(self, init_samples):
         """When the root is not an existing dataset (init_samples==None), we sample from a normal distribution with
         - its mean: mean of the means of the original data distributions
-        - its variance: (mean of the (variances)^-1 of the original data distributions)^-1
-        - its nb of samples: max of the nbs of samples in the original data distributions.
-
+        - its variance: PARAM x (mean of the (variances)^-1 of the original data distributions)^-1
+        - its nb of samples: max of the nbs of samples in the original data distributions
+        where PARAM=self.args.init_var_rate.
         We initialize self.data_root, a tensor which will contain the data of the cacheloader of the root.
         We build a cacheloader for training and dataloaders for saving and plotting."""
         reg = 1e-8
@@ -137,7 +206,8 @@ class IPFTree(torch.nn.Module):
             gaussian_var = 1 / torch.mean(torch.stack(stack_inv_var), dim=0)
             nb_samples = max(stack_nb_samples)
 
-            init_samples = gaussian_mean + torch.sqrt(gaussian_var) * torch.randn((nb_samples, *gaussian_mean.shape))
+            init_samples = gaussian_mean + torch.sqrt(self.args.init_var_rate * gaussian_var) * torch.randn(
+                (nb_samples, *gaussian_mean.shape))
 
         self.data_root = torch.zeros((0, *init_samples[0].shape)).to(self.device)
 
@@ -295,7 +365,7 @@ class IPFTreeSequential(IPFTree):
         self.start_n_ipf = self.args.start_n_ipf
 
     def train_along_path(self, path, n):
-        """Iteratively trains along the backward direction of the edges of path."""
+        """Sequentially trains along the backward direction of the edges of path."""
         queue_vertices = deque(path)
         source_index = queue_vertices.popleft()
         while queue_vertices:
@@ -309,6 +379,13 @@ class IPFTreeSequential(IPFTree):
             current_edge.ipf.ipf_train(forward_direction, backward_direction, n)
             print('Training the backward direction on the edge ' + str(source_index) + ' -> ' + str(
                 dest_index) + ' DONE !')
+            # updating the edge status after training
+            if forward_direction == 'f':
+                current_edge.ipf.flag_b = max(current_edge.ipf.flag_b + 1, n)
+            else:
+                current_edge.ipf.flag_f = max(current_edge.ipf.flag_f + 1, n)
+            current_edge.ipf.save_model(backward_direction, n, self.args.num_iter)
+            print('Saving the model: DONE !')
             self.tree.graph[dest_index].vertex.first_forward = True
             if not self.tree.graph[dest_index].vertex.data:
                 self.tree.graph[dest_index].vertex.cache_dl = current_edge.ipf.next_vertex_dic['cache_dl']
@@ -318,7 +395,7 @@ class IPFTreeSequential(IPFTree):
             source_index = dest_index
 
     def train_ipf_tree(self, epsilon, n_ipf, start_n_ipf=0, k_epsilon=1):
-        """Performs n_ipf IPF cycles, starting at start_n_ipf+1, for a given epsilon."""
+        """Performs n_ipf mIPF cycles, starting at start_n_ipf+1 (unless start_n_ipf==0), for a given epsilon."""
         # Prepare the IPF edges
         for vertex, vertex_node in enumerate(self.tree.graph):
             for j in vertex_node.edges.keys():
@@ -341,14 +418,13 @@ class IPFTreeSequential(IPFTree):
 
         # in the case where the root is not a leaf
         if not self.tree.graph[0].vertex.data:
-            print('IPF ITERATION 0: the chosen root is not a dataset.')
+
             leaf_queue = deque(leaves)
             root_index = self.tree.get_root()
-            print('Current root:' + str(root_index))
             next_leaf_index = leaf_queue.popleft()
-            print('Current leaf:' + str(next_leaf_index))
 
             if start_n_ipf == 0:
+                print('IPF ITERATION 0: the chosen root is not a dataset.')
                 path = self.tree.find_path(root_index, next_leaf_index)
                 reversed_path = path.copy()
                 reversed_path.reverse()
@@ -448,7 +524,7 @@ class IPFTreeSequential(IPFTree):
             for j in vertex_node.edges.keys():
                 print('Edge from {source} to {dest}'.format(source=vertex, dest=j))
                 self.tree.graph[vertex].edges[j].ipf.set_time_horizon(epsilon, k_epsilon)
-                _,_=self.tree.graph[vertex].edges[j].ipf.build_dataloader_from_forward()
+                _, _ = self.tree.graph[vertex].edges[j].ipf.build_dataloader_from_forward()
                 print('*****************************************************************')
         print('\n\n')
 
@@ -473,14 +549,14 @@ class IPFTreeSequential(IPFTree):
             if self.args.plot_SDE:
                 print('SDE: Sampling from {leaf} to {root}.'.format(root=current_leaf_index,
                                                                     leaf=next_leaf_index))
-                self.save_along_reversed_path(reversed_path, 0, 0,
+                self.save_along_reversed_path(reversed_path, self.args.start_n_ipf, 0,
                                               test_with_corrector=self.args.test_with_corrector,
                                               save_root=True)
             print('---------------------------------------------------------------------------------')
             if self.args.plot_ODE:
                 print('ODE: Sampling from {root} to {leaf}.'.format(root=current_leaf_index,
                                                                     leaf=next_leaf_index))
-                self.save_along_forward_path(path_between_leaves, 0, 0,
+                self.save_along_forward_path(path_between_leaves, self.args.start_n_ipf, 0,
                                              test_with_corrector=self.args.test_with_corrector,
                                              save_root=True)
             print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
@@ -517,7 +593,7 @@ class IPFTreeSequential(IPFTree):
 
 class IPFBase(torch.nn.Module):
 
-    def __init__(self, args, edge_weight, source_vertex, destination_vertex):
+    def __init__(self, args, edge_weight, source_vertex, destination_vertex, net, sample_net, ema_helpers):
         super().__init__()
         self.args = args
         self.dataset_tag = getattr(self.args, DATASET)
@@ -541,13 +617,18 @@ class IPFBase(torch.nn.Module):
         self.grad_clipping = self.args.grad_clipping
         self.lr = self.args.lr
 
-        # CONVENTION:
-        # forward net f : used in a forward diffusion if the direction of this diffusion is the same as the edge
-        # backward net b : used in a forward diffusion if the direction of this diffusion is the opposite of the edge
-
         # get models
-        self.build_models()
-        self.build_ema()
+        self.net = net
+        self.sample_net = sample_net
+        self.ema_helpers = ema_helpers
+
+        # initialization of the flags to update the models
+        if self.args.checkpoint_run and self.args.start_n_ipf > 0:
+            self.flag_f = self.args.start_n_ipf
+            self.flag_b = self.args.start_n_ipf
+        else:
+            self.flag_f = -1
+            self.flag_b = -1
 
         # get optims
         self.build_optimizers()
@@ -603,71 +684,9 @@ class IPFBase(torch.nn.Module):
     def get_plotter(self):
         return get_plotter(self, self.args)
 
-    def build_models(self):
-        # running network
-        net_f, net_b = get_models(self.args)
-
-        if self.args.checkpoint_run:
-            path = os.path.join(self.args.checkpoints_dir,
-                                "source={source},dest={destination}".format(source=self.source_vertex.idx,
-                                                                            destination=self.destination_vertex.idx))
-            if "checkpoint_f" in self.args:
-                path_f = path + "/" + self.args.checkpoint_f
-                net_f.load_state_dict(torch.load(path_f, map_location=self.device))
-            if "checkpoint_b" in self.args:
-                path_b = path + "/" + self.args.checkpoint_b
-                net_b.load_state_dict(torch.load(path_b, map_location=self.device))
-
-        if self.args.dataparallel:
-            net_f = torch.nn.DataParallel(net_f)
-            net_b = torch.nn.DataParallel(net_b)
-
-        net_f = net_f.to(self.device)
-        net_b = net_b.to(self.device)
-        self.net = torch.nn.ModuleDict({'f': net_f, 'b': net_b})
-
-        del net_f
-        del net_b
-        self.clear()
-
     def accelerate(self, forward_or_backward):
         (self.net[forward_or_backward], self.optimizer[forward_or_backward]) = self.accelerator.prepare(
             self.net[forward_or_backward], self.optimizer[forward_or_backward])
-
-    def update_ema(self, forward_or_backward):
-        if self.args.ema:
-            self.ema_helpers[forward_or_backward] = EMAHelper(
-                mu=self.args.ema_rate, device=self.device)
-            self.ema_helpers[forward_or_backward].register(
-                self.net[forward_or_backward])
-
-    def build_ema(self):
-        if self.args.ema:
-            self.ema_helpers = {}
-            self.update_ema('f')
-            self.update_ema('b')
-
-            if self.args.checkpoint_run:
-                # sample network
-                sample_net_f, sample_net_b = get_models(self.args)
-
-                path = os.path.join(self.args.checkpoints_dir,
-                                    "source={source},dest={destination}".format(source=self.source_vertex.idx,
-                                                                                destination=self.destination_vertex.idx))
-
-                path_f = path + "/" + self.args.sample_checkpoint_f
-                sample_net_f.load_state_dict(torch.load(path_f, map_location=self.device))
-                if self.args.dataparallel:
-                    sample_net_f = torch.nn.DataParallel(sample_net_f)
-                sample_net_f = sample_net_f.to(self.device)
-                self.ema_helpers['f'].register(sample_net_f)
-
-                path_b = path + "/" + self.args.sample_checkpoint_b
-                sample_net_b.load_state_dict(torch.load(path_b, map_location=self.device))
-                if self.args.dataparallel:
-                    sample_net_b = torch.nn.DataParallel(sample_net_b)
-                sample_net_b = sample_net_b.to(self.device)
-                self.ema_helpers['b'].register(sample_net_b)
 
     def build_optimizers(self):
         optimizer_f, optimizer_b = get_optimizers(self.net['f'], self.net['b'], self.lr)
@@ -791,6 +810,115 @@ class IPFBase(torch.nn.Module):
         self.langevin.gammas = gammas.float()
         self.langevin.time = torch.cumsum(self.langevin.gammas, 0).to(self.langevin.device).float()
 
+    def update_model_from_init(self, direction_to_load):
+        """Given a direction (f or b), updates the model according to the initial tree model."""
+        dir = './'
+        name_net = 'net' + '_' + direction_to_load + '_init.ckpt'
+        name_net_ckpt = dir + name_net
+        state_dict = torch.load(name_net_ckpt, map_location=self.device)
+        if self.args.dataparallel:
+            state_dict = add_module_state_dict(state_dict)
+        self.net[direction_to_load].load_state_dict(state_dict)
+
+        del state_dict
+
+        if self.args.ema:
+            name_sample_net = 'sample_net' + '_' + direction_to_load + '_init.ckpt'
+            name_sample_net_ckpt = edge_dir + name_sample_net
+            state_dict = torch.load(name_sample_net_ckpt, map_location=self.device)
+            if self.args.dataparallel:
+                state_dict = add_module_state_dict(state_dict)
+            self.sample_net[direction_to_load].load_state_dict(state_dict)
+            self.ema_helpers[direction_to_load].register(self.sample_net[direction_to_load])
+
+            del state_dict
+            self.clear()
+
+    def update_model_from_checkpoint(self, direction_to_load):
+        """Given a direction (f or b), updates the model according to a checkpoint."""
+        edge_dir = os.path.join(self.args.checkpoints_dir,
+                                "source={source},dest={destination}".format(source=self.source_vertex.idx,
+                                                                            destination=self.destination_vertex.idx))
+        path = edge_dir + "/" + self.args.checkpoint_f if direction_to_load == 'f' else edge_dir + "/" + self.args.checkpoint_b
+        state_dict = torch.load(path, map_location=self.device)
+        if self.args.dataparallel:
+            state_dict = add_module_state_dict(state_dict)
+        self.net[direction_to_load].load_state_dict(state_dict)
+        del state_dict
+
+        if self.args.ema:
+            sample_path = edge_dir + "/" + self.args.sample_checkpoint_f if direction_to_load == 'f' else edge_dir + "/" + self.args.sample_checkpoint_b
+            state_dict = torch.load(sample_path, map_location=self.device)
+            if self.args.dataparallel:
+                state_dict = add_module_state_dict(state_dict)
+            self.sample_net[direction_to_load].load_state_dict(state_dict)
+            self.ema_helpers[direction_to_load].register(self.sample_net[direction_to_load])
+
+            del state_dict
+            self.clear()
+
+    def update_model_from_previous_it(self, direction_to_load, n, i):
+        """Given a direction (f or b), updates the model according to the previous iteration."""
+        edge_dir = './source={source},dest={destination}/'.format(
+            source=self.source_vertex.idx, destination=self.destination_vertex.idx)
+
+        name_net = 'net' + '_' + direction_to_load + '_' + str(n) + "_" + str(i) + '.ckpt'
+        name_net_ckpt = edge_dir + 'checkpoints_model/' + name_net
+        state_dict = torch.load(name_net_ckpt, map_location=self.device)
+        if self.args.dataparallel:
+            state_dict = add_module_state_dict(state_dict)
+        self.net[direction_to_load].load_state_dict(state_dict)
+        del state_dict
+
+        if self.args.ema:
+            name_sample_net = 'sample_net' + '_' + direction_to_load + '_' + str(n) + "_" + str(i) + '.ckpt'
+            name_sample_net_ckpt = edge_dir + 'checkpoints_model/' + name_sample_net
+            state_dict = torch.load(name_sample_net_ckpt, map_location=self.device)
+            if self.args.dataparallel:
+                state_dict = add_module_state_dict(state_dict)
+            self.sample_net[direction_to_load].load_state_dict(state_dict)
+            self.ema_helpers[direction_to_load].register(self.sample_net[direction_to_load])
+
+            del state_dict
+            self.clear()
+
+    def update_model(self, direction_to_load, n, i):
+        """Given a direction, updates the model of the edge."""
+        if self.args.checkpoint_run and self.args.start_n_ipf > 0 and n == self.args.start_n_ipf:
+            # first time the edge is ever visited, with initialisation
+            self.update_model_from_checkpoint(direction_to_load)
+        elif self.args.checkpoint_run and self.args.start_n_ipf == 0 and n < 0:
+            # first time the edge is ever visited, with initialisation
+            self.update_model_from_checkpoint(direction_to_load)
+        elif n == -1:
+            # first time the edge is ever visited, but no given initialisation
+            self.update_model_from_init(direction_to_load)
+        else:
+            self.update_model_from_previous_it(direction_to_load, n, i)
+
+    def save_model(self, direction_to_save, n, i):
+        edge_dir = './source={source},dest={destination}/'.format(
+            source=self.source_vertex.idx, destination=self.destination_vertex.idx)
+
+        name_net = 'net' + '_' + direction_to_save + '_' + str(n) + "_" + str(i) + '.ckpt'
+        name_net_ckpt = edge_dir + 'checkpoints_model/' + name_net
+        if self.args.dataparallel:
+            torch.save(self.net[direction_to_save].module.state_dict(), name_net_ckpt)
+        else:
+            torch.save(self.net[direction_to_save].state_dict(), name_net_ckpt)
+
+        if self.args.ema:
+            name_sample_net = 'sample_net' + '_' + direction_to_save + '_' + str(n) + "_" + str(i) + '.ckpt'
+            name_sample_net_ckpt = edge_dir + 'checkpoints_model/' + name_sample_net
+            sample_net = self.ema_helpers[direction_to_save].ema_copy(self.net[direction_to_save])
+            if self.args.dataparallel:
+                torch.save(sample_net.module.state_dict(), name_sample_net_ckpt)
+            else:
+                torch.save(sample_net.state_dict(), name_sample_net_ckpt)
+
+            del sample_net
+            self.clear()
+
     def update_cacheloaders(self, init_cache_dl, sample_direction, first_pass_on_edge, use_ema, dynamics='sde',
                             corrector=False, schedule='zero', coeff_schedule=2, sample=False):
         """Returns the cache training dataloader and the cache dataloader of the next vertex to visit."""
@@ -823,6 +951,8 @@ class IPFBase(torch.nn.Module):
         """Saves the samples obtained on sample_direction by discretizing the SDE."""
         backward_direction = 'b' if sample_direction == 'f' else 'f'
         corrector = n > self.args.start_corrector if not test_with_corrector else True
+        self.update_model('f', self.flag_f, self.num_iter)
+        self.update_model('b', self.flag_b, self.num_iter)
 
         if self.accelerator.is_local_main_process:
 
@@ -833,24 +963,6 @@ class IPFBase(torch.nn.Module):
                 sample_net = self.net[sample_direction]
                 backward_net = self.net[backward_direction]
 
-            edge_dir = './source={source},dest={destination}/'.format(
-                source=self.source_vertex.idx, destination=self.destination_vertex.idx)
-
-            name_net = 'net' + '_' + sample_direction + '_' + str(n) + "_" + str(i) + '.ckpt'
-            name_net_ckpt = edge_dir + 'checkpoints_model/' + name_net
-            if i > 0:
-                if self.args.dataparallel:
-                    torch.save(self.net[sample_direction].module.state_dict(), name_net_ckpt)
-                else:
-                    torch.save(self.net[sample_direction].state_dict(), name_net_ckpt)
-
-            if self.args.ema and i > 0:
-                name_net = 'sample_net' + '_' + sample_direction + '_' + str(n) + "_" + str(i) + '.ckpt'
-                name_net_ckpt = edge_dir + 'checkpoints_model/' + name_net
-                if self.args.dataparallel:
-                    torch.save(sample_net.module.state_dict(), name_net_ckpt)
-                else:
-                    torch.save(sample_net.state_dict(), name_net_ckpt)
             if sample_direction == 'b':
                 save_dl_to_sample_from = self.destination_vertex.save_dl_sde
             else:
@@ -907,6 +1019,9 @@ class IPFBase(torch.nn.Module):
         """Saves the samples obtained on sample_direction by discretizing the ODE."""
         backward_direction = 'b' if sample_direction == 'f' else 'f'
         corrector = n > self.args.start_corrector if not test_with_corrector else True
+        self.update_model('f', self.flag_f, self.num_iter)
+        self.update_model('b', self.flag_b, self.num_iter)
+
         if self.accelerator.is_local_main_process:
 
             if self.args.ema:
@@ -916,24 +1031,6 @@ class IPFBase(torch.nn.Module):
                 forward_net = self.net[sample_direction]
                 backward_net = self.net[backward_direction]
 
-            edge_dir = './source={source},dest={destination}/'.format(
-                source=self.source_vertex.idx, destination=self.destination_vertex.idx)
-
-            name_backward_net = 'net' + '_' + backward_direction + '_' + str(n) + "_" + str(i) + '.ckpt'
-            name_backward_net_ckpt = edge_dir + 'checkpoints_model/' + name_backward_net
-            if i > 0:
-                if self.args.dataparallel:
-                    torch.save(self.net[backward_direction].module.state_dict(), name_backward_net_ckpt)
-                else:
-                    torch.save(self.net[backward_direction].state_dict(), name_backward_net_ckpt)
-
-            if self.args.ema and i > 0:
-                name_backward_net = 'sample_net' + '_' + backward_direction + '_' + str(n) + "_" + str(i) + '.ckpt'
-                name_backward_net_ckpt = edge_dir + 'checkpoints_model/' + name_backward_net
-                if self.args.dataparallel:
-                    torch.save(backward_net.module.state_dict(), name_backward_net_ckpt)
-                else:
-                    torch.save(backward_net.state_dict(), name_backward_net_ckpt)
             if sample_direction == 'b':
                 save_dl_to_sample_from = self.destination_vertex.save_dl_ode
             else:
@@ -998,16 +1095,19 @@ class IPFBase(torch.nn.Module):
 
 class IPFSequential(IPFBase):
 
-    def __init__(self, args, edge_weight, source_vertex, destination_vertex):
-        super().__init__(args, edge_weight, source_vertex, destination_vertex)
+    def __init__(self, args, edge_weight, source_vertex, destination_vertex, net, sample_net, ema_helpers):
+        super().__init__(args, edge_weight, source_vertex, destination_vertex, net, sample_net, ema_helpers)
 
     def ipf_train(self, forward_direction, backward_direction, n):
+        self.update_model('f', self.flag_f, self.num_iter)
+        self.update_model('b', self.flag_b, self.num_iter)
+
         if forward_direction == 'f':
             init_cache_dl = self.source_vertex.cache_dl
-            first_pass_on_edge = self.destination_vertex.first_forward
+            first_pass_on_edge = (n > 1) or self.destination_vertex.first_forward
         else:
             init_cache_dl = self.destination_vertex.cache_dl
-            first_pass_on_edge = self.source_vertex.first_forward
+            first_pass_on_edge = (n > 1) or self.source_vertex.first_forward
         self.update_cacheloaders(init_cache_dl,
                                  forward_direction,
                                  first_pass_on_edge,

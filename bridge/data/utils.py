@@ -4,6 +4,15 @@ import os
 import os.path
 
 from torch.utils.model_zoo import tqdm
+from collections import OrderedDict
+
+
+def add_module_state_dict(state_dict):
+    new_state_dict = OrderedDict()
+    for k, v in state_dict.items():
+        name = 'module.' + k
+        new_state_dict[name] = v
+    return new_state_dict
 
 
 def gen_bar_updater():

@@ -10,14 +10,14 @@ scaling_factor: 7.
 barycenter_weights: [0.333, 0.333, 0.333]
 
 # OT regularization
-epsilon: 0.05
-n_ipf: 20
+epsilon: 0.1
+n_ipf: 50
 start_n_ipf: 0
 
 # device
-device: cpu
+device: cuda
 dataparallel: True
-num_workers: 0
+num_workers: 8
 pin_memory: False
 
 # global training
@@ -49,19 +49,19 @@ plot_freq: ${num_steps}
 plot_particle: False
 plot_trajectory: False
 plot_registration: False
-plot_density: True
+plot_density: False
 plot_density_smooth: True
 save_stride: 1
 log_stride: 50
 gif_stride: ${num_iter}
 
 # checkpoints for model
-checkpoint_run: True
-checkpoints_dir: '../../../../../checkpoints_model/2d_3datasets_epsilon=0.05'
+checkpoint_run: False
+checkpoints_dir: '../../../../../checkpoints_model/2d_3datasets_epsilon=0.1'
 
-checkpoint_f: "net_f_35_10000.ckpt"
-checkpoint_b: "net_b_35_10000.ckpt"
+checkpoint_f: "net_f_50_10000.ckpt"
+checkpoint_b: "net_b_50_10000.ckpt"
 
 # load some data on the root at the initialisation
 data_root_load: False
-data_root_path: '../../../../../checkpoints_data/2d_3datasets/data_root_epsilon=0.050.pt'
+data_root_path: '../../../../../checkpoints_data/2d_3datasets/data_root_epsilon=0.200_sde.pt'

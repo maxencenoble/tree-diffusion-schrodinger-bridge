@@ -38,14 +38,15 @@ coeff_schedule_SDE: 1
 #    - if cosine: strength of the cosine schedule (>0) -> typically 1
 #    - if binary: strength of the binary schedule (between 0 and 1) -> typically 0.9
 
-# starting leaf seed
-starting_leaf_seed: 0
+# initialisation
+starting_leaf_seed: 0 # seed for the first chosen leaf
+init_var_rate: 10. # multiplicative constant used in the variance of the initialized root dataset
 
 # penalizing the norm of the drifts during training process
 loss_weight: 0.
 
 # predictor/corrector
-num_corrector_steps: 1
+num_corrector_steps: 0
 start_corrector: 1 # number of first iterations without corrector in train_model
 test_with_corrector: True # using corrector in test_model
-snr: 0.02 # signal-to-noise ratio
+snr: 0.05 # signal-to-noise ratio

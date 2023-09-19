@@ -175,7 +175,7 @@ class TwoDPlotter(object):
                     plt.scatter(x[-1, :, 0], x[-1, :, 1], zorder=2, alpha=0.2, s=10, label='t=T')
                     plt.legend()
                     if ipf_it is not None:
-                        str_title = 'IPFP iteration: ' + str(ipf_it) + ', from vertex ' + str(init) + ' to ' + str(fin)
+                        str_title = 'mIPF cycle: ' + str(ipf_it) + ', from vertex ' + str(init) + ' to ' + str(fin)
                         plt.title(str_title)
 
                     # plt.axis('equal')
@@ -217,7 +217,7 @@ class TwoDPlotter(object):
                     plt.plot(x[0, :, 0], x[0, :, 1], '*', alpha=0)
                     plt.scatter(x[k, :, 0], x[k, :, 1], c=colors)
                     if ipf_it is not None:
-                        str_title = 'IPFP iteration: ' + str(ipf_it) + ', from vertex ' + str(init) + ' to ' + str(fin)
+                        str_title = 'mIPF cycle: ' + str(ipf_it) + ', from vertex ' + str(init) + ' to ' + str(fin)
                         plt.title(str_title)
                     plt.savefig(filename, bbox_inches='tight', transparent=True, dpi=DPI)
                     plot_paths_reg.append(filename)
@@ -244,7 +244,7 @@ class TwoDPlotter(object):
                         xlim = [-15, 15]
                         ylim = [-15, 15]
                     if ipf_it is not None:
-                        str_title = 'IPFP iteration: ' + str(ipf_it) + ', from vertex ' + str(init) + ' to ' + str(fin)
+                        str_title = 'mIPF cycle: ' + str(ipf_it) + ', from vertex ' + str(init) + ' to ' + str(fin)
                         plt.title(str_title)
                     plt.hist2d(x[k, :, 0], x[k, :, 1], range=[[xlim[0], xlim[1]], [ylim[0], ylim[1]]], bins=npts)
                     plt.savefig(filename, bbox_inches='tight', transparent=True, dpi=DPI)
@@ -267,7 +267,7 @@ class TwoDPlotter(object):
                         xlim = [-15, 15]
                         ylim = [-15, 15]
                     if ipf_it is not None:
-                        str_title = 'IPFP iteration: ' + str(ipf_it) + ', from vertex ' + str(init) + ' to ' + str(fin)
+                        str_title = 'mIPF cycle: ' + str(ipf_it) + ', from vertex ' + str(init) + ' to ' + str(fin)
                         plt.title(str_title)
 
                     plot = sns.kdeplot(x=x[k, :, 0], y=x[k, :, 1], clip=[[xlim[0], xlim[1]], [ylim[0], ylim[1]]],

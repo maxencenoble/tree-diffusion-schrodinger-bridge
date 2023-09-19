@@ -1,5 +1,9 @@
 from .config_tree import Graph
 
+# When creating a new class, make sure that:
+# - the vertex 0 corresponds to the root
+# - the tree is directed
+# - internal vertices do not hold data
 
 class BridgeTree(Graph):
     def __init__(self,
