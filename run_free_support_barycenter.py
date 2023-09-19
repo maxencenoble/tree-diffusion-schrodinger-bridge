@@ -4,6 +4,7 @@ import numpy as np
 import argparse
 import torch
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 from bridge.data.two_dim import data_distrib as two_dim_distrib
 from bridge.data.gaussian import data_distrib as gaussian_distrib
@@ -24,10 +25,13 @@ REG = 1e-8
 B_WEIGHTS = np.array([1 / 3, 1 / 3, 1 / 3]).astype(np.float32)
 
 # 1. 2D SETTING
-# OT_REG = 0.5, NPAR = 1500, NUM_ITER = 50
+# OT_REG = 0.5, NPAR = 1500, NUM_ITER = 100
 
 Datasets_2D = ['moon', 'circle', 'swiss']
 SCALING_FACTOR = 7.
+COMPUTE_exact_2d = True
+OT_REG_convolutional_2d = 5e-4
+COMPUTE_convolutional_2d = True
 
 # 2. GAUSSIAN SETTING
 # DIM = 2 : OT_REG = 0.1
@@ -109,7 +113,43 @@ def main():
     for i in range(3):
         measures_locations[i] = measures_locations[i].detach().cpu().numpy()
 
-    print('---Running the algorithm---')
+    if args.data == '2d' and COMPUTE_exact_2d:
+        print('---Running Free Support Exact OT algorithm (2D)---')
+        X = ot.lp.free_support_barycenter(measures_locations=measures_locations,
+                                          measures_weights=measures_weights,
+                                          X_init=X_init,
+                                          weights=B_WEIGHTS,
+                                          numItermax=NUM_ITER,
+                                          verbose=True)
+        lim = 2.5 * SCALING_FACTOR
+        plt.clf()
+        plt.title('Free Support exact barycenter in 2D')
+        plt.hist2d(X[:, 0], X[:, 1], range=[[-lim, lim], [-lim, lim]], bins=100)
+        plt.savefig('images/2d_free_support_exact_barycenter.png', bbox_inches='tight', transparent=True, dpi=200)
+
+    if args.data == '2d' and COMPUTE_convolutional_2d:
+        print('---Running Convolutional Sinkhorn algorithm (2D)---')
+        lim = 2.5 * SCALING_FACTOR
+        all_hist_list = []
+        for i in range(3):
+            X_i = measures_locations[i]
+            hist_i = plt.hist2d(X_i[:, 1], X_i[:, 0], range=[[-lim, lim], [-lim, lim]], bins=[100,134])[0]
+            hist_i = hist_i / np.sum(hist_i)
+            all_hist_list.append(hist_i)
+        A = np.array(all_hist_list)
+        hist_barycenter = ot.bregman.convolutional_barycenter2d(A=A,
+                                                                reg=OT_REG_convolutional_2d,
+                                                                weights=B_WEIGHTS,
+                                                                verbose=True,
+                                                                warn=False)
+        hist_barycenter = hist_barycenter[::-1]
+        plt.clf()
+        fig, ax1 = plt.subplots(1, 1)
+        ax1.imshow(hist_barycenter)
+        ax1.set_title('Convolutional Sinkhorn barycenter in 2D')
+        fig.savefig('images/2d_convolutional_sinkhorn_barycenter.png', bbox_inches='tight', transparent=True, dpi=200)
+
+    print('---Running Free Support Sinkhorn algorithm---')
     X = ot.bregman.free_support_sinkhorn_barycenter(measures_locations=measures_locations,
                                                     measures_weights=measures_weights,
                                                     X_init=X_init,
@@ -118,12 +158,13 @@ def main():
                                                     numItermax=NUM_ITER,
                                                     warn=False,
                                                     verbose=True)
+
     if args.data == '2d':
         lim = 2.5 * SCALING_FACTOR
         plt.clf()
-        plt.hist2d(X[:, 0], X[:, 1], range=[[-lim, lim], [-lim, lim]], bins=100)
         plt.title('Free Support Sinkhorn barycenter in 2D')
-        plt.savefig('2d_free_support_barycenter.png', bbox_inches='tight', transparent=True, dpi=200)
+        plt.hist2d(X[:, 0], X[:, 1], range=[[-lim, lim], [-lim, lim]], bins=100)
+        plt.savefig('images/2d_free_support_sinkhorn_barycenter.png', bbox_inches='tight', transparent=True, dpi=200)
 
     if args.data == 'gaussian':
         print('BW2_UVP criterion :{:.5f}'.format(BW2_UVP(X, np.zeros(DIM), ideal_cov)))

@@ -1,4 +1,4 @@
-# Tree Diffusion Schr&ouml;dinger Bridge
+# Tree-based Diffusion Schr&ouml;dinger Bridge
 
 This is the official code for the paper 'Tree-Based Diffusion Schr&ouml;dinger Bridge with Applications to Wasserstein
 Barycenters'. It extends the framework of [Diffusion Schr&ouml;dinger Bridge](https://arxiv.org/abs/2106.01357) to any
@@ -9,20 +9,24 @@ distributions, which is of main interest in Optimal Transport (OT).
 
 ![drawing](images/drawing_tree.png)
 
-Illustration
+In our setting, **each edge of the tree is parameterized by two neural networks**, which model the forward and backward
+drifts of the diffusion processes. In theory, this requires to consider 2M neural networks, where M stands for the
+number of edges in the tree. To avoid any memory issue in practice, *our code only requires to consider 2 active neural networks*
+at each stage of the training process.
+
+Illustration (2D)
 ------------
 
-Estimation of 2D densities (first row: OT reg=0.05) and approximation of their Wasserstein-2 barycenter obtained by
-diffusing from each leaf (second row: OT reg=0.05 with 35 IPF cycles, third row: OT reg=0.1 with 20 IPF cycles, fourth
-row: OT reg=0.2 with 20 IPF cycles). These plots are obtained without applying the Langevin corrector. Barycenter
-pictures are available with corrector 0.02 (see `./images`).
+- *First row*: estimation of densities (OT reg=0.05 with 60 IPF cycles).
+- *Second to fourth row*: estimation of the Wasserstein-2 barycenter by diffusing from each leaf with various OT
+  regularizations (OT reg=0.05 with 60 IPF cycles, OT reg=0.1 with 50 IPF cycles, OT reg=0.2 with 50 IPF cycles).
 
-| Swiss Roll                                                                                                    | Circle                                                                                                          | Moons                                                                                                         |
-|---------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
-| ![swiss_f](images/2d_3datasets_epsilon=0.05/swiss_0_f_0_sde_epsilon=0.050_eps1_density_49.png)                | ![circle_f](images/2d_3datasets_epsilon=0.05/circle_0_f_0_sde_epsilon=0.050_eps1_density_49.png)                | ![moons_f](images/2d_3datasets_epsilon=0.05/moons_0_f_0_sde_epsilon=0.050_eps1_density_49.png)                |
-| ![swiss_b_1](images/2d_3datasets_epsilon=0.05/no-corrector/swiss_0_b_0_sde_epsilon=0.050_eps1_density_49.png) | ![circle_b_1](images/2d_3datasets_epsilon=0.05/no-corrector/circle_0_b_0_sde_epsilon=0.050_eps1_density_49.png) | ![moons_b_1](images/2d_3datasets_epsilon=0.05/no-corrector/moons_0_b_0_sde_epsilon=0.050_eps1_density_49.png) |
-| ![swiss_b_2](images/2d_3datasets_epsilon=0.1/no-corrector/swiss_0_b_0_sde_epsilon=0.100_eps1_density_49.png)  | ![circle_b_2](images/2d_3datasets_epsilon=0.1/no-corrector/circle_0_b_0_sde_epsilon=0.100_eps1_density_49.png)  | ![moons_b_2](images/2d_3datasets_epsilon=0.1/no-corrector/moons_0_b_0_sde_epsilon=0.100_eps1_density_49.png)  |
-| ![swiss_b_3](images/2d_3datasets_epsilon=0.2/no-corrector/swiss_0_b_0_sde_epsilon=0.200_eps1_density_49.png)  | ![circle_b_3](images/2d_3datasets_epsilon=0.2/no-corrector/circle_0_b_0_sde_epsilon=0.200_eps1_density_49.png)  | ![moons_b_3](images/2d_3datasets_epsilon=0.2/no-corrector/moons_0_b_0_sde_epsilon=0.200_eps1_density_49.png)  |
+| Swiss Roll                                                                                              | Circle                                                                                                    | Moons                                                                                                   |
+|---------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| ![swiss_f](images/2d_3datasets_epsilon=0.05/swiss_0_f_0_sde_epsilon=0.050_eps1_density_49_smooth.png)   | ![circle_f](images/2d_3datasets_epsilon=0.05/circle_0_f_0_sde_epsilon=0.050_eps1_density_49_smooth.png)   | ![moons_f](images/2d_3datasets_epsilon=0.05/moons_0_f_0_sde_epsilon=0.050_eps1_density_49_smooth.png)   |
+| ![swiss_b_1](images/2d_3datasets_epsilon=0.05/swiss_0_b_0_sde_epsilon=0.050_eps1_density_49_smooth.png) | ![circle_b_1](images/2d_3datasets_epsilon=0.05/circle_0_b_0_sde_epsilon=0.050_eps1_density_49_smooth.png) | ![moons_b_1](images/2d_3datasets_epsilon=0.05/moons_0_b_0_sde_epsilon=0.050_eps1_density_49_smooth.png) |
+| ![swiss_b_2](images/2d_3datasets_epsilon=0.1/swiss_0_b_0_sde_epsilon=0.100_eps1_density_49_smooth.png)  | ![circle_b_2](images/2d_3datasets_epsilon=0.1/circle_0_b_0_sde_epsilon=0.100_eps1_density_49_smooth.png)  | ![moons_b_2](images/2d_3datasets_epsilon=0.1/moons_0_b_0_sde_epsilon=0.100_eps1_density_49_smooth.png)  |
+| ![swiss_b_3](images/2d_3datasets_epsilon=0.2/swiss_0_b_0_sde_epsilon=0.200_eps1_density_49_smooth.png)  | ![circle_b_3](images/2d_3datasets_epsilon=0.2/circle_0_b_0_sde_epsilon=0.200_eps1_density_49_smooth.png)  | ![moons_b_3](images/2d_3datasets_epsilon=0.2/moons_0_b_0_sde_epsilon=0.200_eps1_density_49_smooth.png)  |
 
 Contributors
 ------------
@@ -70,9 +74,9 @@ at https://drive.google.com/drive/folders/0B7EVK8r0v71pWEZsZE9oNnFzTm8?resourcek
 
 2. Change the configuration files:
 
-- `./config/config.yaml`: SDE and/or ODE to save plots, starting leaf seed, corrector setting
-- `./config/dataset/`: specific settings for each dataset (OT regularization, training setting...)
-- `./config/model/`: specific setting for each model (fully connected neural network: Basic or UNET)
+- `./config/config.yaml`: SDE/ODE settings for plots, initialisation setting, corrector setting
+- `./config/dataset/`: specific settings for each dataset (OT regularization, training parameters, checkpoints...)
+- `./config/model/`: specific setting for each model (fully connected neural network -> Basic or UNET)
 
 The size of the cache dataset used to obtain samples in the training stage is given by : `cache_npar`
 x `num_cache_batches` x `num_steps` x `SHAPE`,
@@ -107,12 +111,12 @@ parameters in the dataset configuration file:
 
 - `epsilon`
 - `checkpoints_dir`
-- `checkpoints_dir`, `checkpoint_b`
+- `checkpoints_f`, `checkpoint_b`
 
 5. Train models from pretrained models:
 
 - Follow Step 4.
-- Set `start_n_ipf` to the IPF iteration corresponding to the pretrained models.
+- Set `start_n_ipf` to the mIPF iteration corresponding to the pretrained models.
 
 Checkpoints and sampled images will be saved to a newly created directory named `experiments`.
 
