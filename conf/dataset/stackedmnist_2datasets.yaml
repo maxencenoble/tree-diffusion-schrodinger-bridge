@@ -2,7 +2,7 @@
 
 # data 
 Dataset: stackedmnist
-datasets: [mnist6, mnist9]
+datasets: [mnist0, mnist1]
 data_root: none
 load_data: False
 data:
@@ -19,7 +19,7 @@ n_ipf: 10
 start_n_ipf: 0
 
 # device
-device: mps
+device: cuda
 dataparallel: True
 num_workers: 8
 pin_memory: True

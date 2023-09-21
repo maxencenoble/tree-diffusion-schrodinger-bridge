@@ -824,7 +824,7 @@ class IPFBase(torch.nn.Module):
 
         if self.args.ema:
             name_sample_net = 'sample_net' + '_' + direction_to_load + '_init.ckpt'
-            name_sample_net_ckpt = edge_dir + name_sample_net
+            name_sample_net_ckpt = dir + name_sample_net
             state_dict = torch.load(name_sample_net_ckpt, map_location=self.device)
             if self.args.dataparallel:
                 state_dict = add_module_state_dict(state_dict)
