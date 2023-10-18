@@ -21,9 +21,6 @@ dataparallel: True
 num_workers: 8
 pin_memory: False
 
-# global training
-n_back_and_return: 0
-
 # training on each edge
 mean_match: False
 npar: 10000
@@ -50,7 +47,7 @@ plot_freq: ${num_steps}
 plot_particle: False
 plot_trajectory: False
 plot_registration: False
-plot_density: True
+plot_density: False
 plot_density_smooth: True
 save_stride: 1
 log_stride: 50
@@ -65,5 +62,4 @@ checkpoint_b: "" # EXAMPLE: 'net_b_i_15000.ckpt'
 
 # checkpoints for data at the root of the tree
 data_root_load: False
-data_root_path: '../../../../../checkpoints_data/2d_bridge/...'
 

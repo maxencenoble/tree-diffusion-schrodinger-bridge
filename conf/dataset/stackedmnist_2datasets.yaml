@@ -3,7 +3,7 @@
 # data 
 Dataset: stackedmnist
 datasets: [mnist0, mnist1]
-data_root: none
+data_root: mnist0
 load_data: False
 data:
   dataset: "Stacked_MNIST"
@@ -15,7 +15,7 @@ barycenter_weights: [0.5, 0.5]
 
 # OT regularization
 epsilon: 0.5
-n_ipf: 10
+n_ipf: 15
 start_n_ipf: 0
 
 # device
@@ -23,9 +23,6 @@ device: cuda
 dataparallel: True
 num_workers: 8
 pin_memory: True
-
-# global training
-n_back_and_return: 0
 
 # training
 mean_match: True
@@ -65,5 +62,5 @@ sample_checkpoint_b: "" # EXAMPLE: 'sample_net_b_i_30000.ckpt'
 
 # checkpoints for data at the root of the tree
 data_root_load: False
-data_root_path: '../../../../../checkpoints_data/stackedmnist_2datasets/...'
+data_root_path: '../../../../../checkpoints_data/stackedmnist_2datasets/... .pt'
 

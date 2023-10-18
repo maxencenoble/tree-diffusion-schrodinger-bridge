@@ -12,7 +12,7 @@ dim: 256
 barycenter_weights: [0.333, 0.333, 0.333]
 
 # OT regularization
-epsilon: 0.2
+epsilon: 0.1
 n_ipf: 10
 start_n_ipf: 0
 
@@ -21,9 +21,6 @@ device: cpu
 dataparallel: True
 num_workers: 8
 pin_memory: False
-
-# global training
-n_back_and_return: 0
 
 # training on each edge
 mean_match: False
@@ -59,4 +56,4 @@ checkpoint_b: "" # EXAMPLE: 'net_b_i_15000.ckpt'
 
 # load some data on the root at the initialisation
 data_root_load: False
-data_root_path: '../../../../../checkpoints_data/gaussian_3datasets/...'
+data_root_path: '../../../../../checkpoints_data/gaussian_3datasets/... .pt'

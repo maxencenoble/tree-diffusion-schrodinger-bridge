@@ -2,7 +2,7 @@
 
 Dataset: 2d
 datasets: [moon, circle, swiss]
-data_root: none
+data_root: swiss
 dim: 2
 scaling_factor: 7.
 
@@ -15,13 +15,10 @@ n_ipf: 50
 start_n_ipf: 0
 
 # device
-device: cuda
+device: cpu
 dataparallel: True
 num_workers: 8
 pin_memory: False
-
-# global training
-n_back_and_return: 0
 
 # training on each edge
 mean_match: False
@@ -64,4 +61,4 @@ checkpoint_b: "net_b_50_10000.ckpt"
 
 # load some data on the root at the initialisation
 data_root_load: False
-data_root_path: '../../../../../checkpoints_data/2d_3datasets/data_root_epsilon=0.200_sde.pt'
+data_root_path: '../../../../../checkpoints_data/2d_3datasets/... .pt'

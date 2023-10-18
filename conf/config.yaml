@@ -39,8 +39,8 @@ coeff_schedule_SDE: 1
 #    - if binary: strength of the binary schedule (between 0 and 1) -> typically 0.9
 
 # initialisation
-starting_leaf_seed: 0 # seed for the first chosen leaf
-init_var_rate: 10. # multiplicative constant used in the variance of the initialized root dataset
+starting_leaf_seed: 0 # seed for the first chosen leaf to start mIPF
+init_var_rate: 1. # multiplicative constant used in the variance of the initialized root dataset
 
 # penalizing the norm of the drifts during training process
 loss_weight: 0.

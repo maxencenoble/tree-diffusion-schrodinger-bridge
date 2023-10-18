@@ -3,7 +3,7 @@
 # data 
 Dataset: celeba
 datasets: [Smiling, Eyeglasses]
-data_root: none
+data_root: Smiling
 load_data: False
 data:
   dataset: "CELEBA"
@@ -24,9 +24,6 @@ device: cuda
 dataparallel: True
 num_workers: 8
 pin_memory: True
-
-# global training
-n_back_and_return: 0
 
 # training
 mean_match: True
@@ -65,6 +62,6 @@ sample_checkpoint_b: "" # EXAMPLE: 'sample_net_b_i_40000.ckpt'
 
 # checkpoints for data at the root of the tree
 data_root_load: False
-data_root_path: '../../../../../checkpoints_data/celeba_2datasets/...'
+data_root_path: '../../../../../checkpoints_data/celeba_2datasets/... .pt'
 
 

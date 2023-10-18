@@ -4,7 +4,7 @@ Dataset: posterior
 name_data: wine-homogeneous
 # name_data: wine-homogeneous
 # name_data: wine-heterogeneous
-seed_data: 1
+seed_data: 1 # DO NOT CHANGE
 datasets: [1, 2, 3] # DO NOT CHANGE
 dim: 42
 # dim has to correspond to the sample dimension of name_data
@@ -14,7 +14,7 @@ data_root: none
 barycenter_weights: [0.333, 0.333, 0.333]
 
 # OT regularization
-epsilon: 0.5
+epsilon: 0.1
 n_ipf: 10
 start_n_ipf: 0
 
@@ -23,9 +23,6 @@ device: cpu
 dataparallel: True
 num_workers: 8
 pin_memory: False
-
-# global training
-n_back_and_return: 0
 
 # training on each edge
 mean_match: False
@@ -38,7 +35,7 @@ ema_rate: 0.999
 grad_clipping: False
 grad_clip: 1.0
 batch_size: 4096
-num_iter : 20000
+num_iter : 15000
 lr: 0.0001
 
 # schedule on each edge
@@ -61,4 +58,4 @@ checkpoint_b: "" # EXAMPLE: 'net_b_i_20000.ckpt'
 
 # load some data on the root at the initialisation
 data_root_load: False
-data_root_path: '../../../../../checkpoints_data/posterior_3datasets/...'
+data_root_path: '../../../../../checkpoints_data/posterior_3datasets/... .pt'
