@@ -41,6 +41,8 @@ class IPFTree(torch.nn.Module):
         self.datasets = copy.deepcopy(self.args.datasets)
         self.nb_datasets = len(self.args.datasets)
         self.tree, self.n_vertices = self.tree_structure()
+        tree_tag = getattr(self.args, TREE)
+        self.is_star_shaped = (tree_tag == BARYCENTER_TREE)
         self.shape = None
 
         # for Posterior and Gaussian setting
@@ -160,9 +162,19 @@ class IPFTree(torch.nn.Module):
                 del dic_v
                 del dic_j
                 self.clear()
-        tree_tag = getattr(self.args, TREE)
-        if tree_tag == BARYCENTER_TREE:
+        if self.is_star_shaped:
             self.fill_mean_and_cov_ideal()
+
+    def build_barycenter_node(self):
+        """Building the cacheloaders for the barycenter node."""
+        self.barycenter_vertex = 0 if not self.tree.graph[0].vertex.data else 1
+        sample_mean = self.tree.graph[0].vertex.mean
+        self.barycenter_data = torch.zeros((0, *sample_mean.shape)).to(self.device)
+
+        self.tree.graph[self.barycenter_vertex].vertex.cache_dl_to_save_sde = self.tree.graph[
+            self.barycenter_vertex].vertex.cache_dl
+        self.tree.graph[self.barycenter_vertex].vertex.cache_dl_to_save_ode = self.tree.graph[
+            self.barycenter_vertex].vertex.cache_dl
 
     def fill_mean_and_cov_ideal(self):
         """Assuming that we have a barycenter Tree, we compute:
@@ -187,13 +199,13 @@ class IPFTree(torch.nn.Module):
             np.save('cov_ideal.npy', cov)
 
     def build_root_dataset(self, init_samples):
-        """When the root is not an existing dataset (init_samples==None), we sample from a normal distribution with
-        - its mean: mean of the means of the original data distributions
-        - its variance: PARAM x (mean of the (variances)^-1 of the original data distributions)^-1
-        - its nb of samples: max of the nbs of samples in the original data distributions
-        where PARAM=self.args.init_var_rate.
-        We initialize self.data_root, a tensor which will contain the data of the cacheloader of the root.
-        We build a cacheloader for training and dataloaders for saving and plotting."""
+        """When the initial root of the tree is not a leaf:
+        - either, we fill it with init_samples (when init_samples != None)
+        - or, we fill it with samples from a normal distribution with
+            - its mean: mean of the means of the original data distributions
+            - its variance: PARAM x (mean of the (variances)^-1 of the original data distributions)^-1
+            - its nb of samples: max of the nbs of samples in the original data distributions
+                where PARAM=self.args.init_var_rate."""
         reg = 1e-8
         if init_samples is None:
             stack_mean, stack_inv_var, stack_nb_samples = [], [], []
@@ -208,8 +220,6 @@ class IPFTree(torch.nn.Module):
 
             init_samples = gaussian_mean + torch.sqrt(self.args.init_var_rate * gaussian_var) * torch.randn(
                 (nb_samples, *gaussian_mean.shape))
-
-        self.data_root = torch.zeros((0, *init_samples[0].shape)).to(self.device)
 
         if self.dataset_tag == DATASET_POSTERIOR or self.dataset_tag == DATASET_GAUSSIAN:
             print('BW2_UVP criterion (initialisation) :{:.5f}'.format(
@@ -233,10 +243,6 @@ class IPFTree(torch.nn.Module):
 
         # for training
         self.tree.graph[0].vertex.cache_dl = cache_dl
-
-        # for saving as a dataset (size of the cacheloader)
-        self.tree.graph[0].vertex.cache_dl_to_save_sde = cache_dl
-        self.tree.graph[0].vertex.cache_dl_to_save_ode = cache_dl
 
         # for plotting
         self.tree.graph[0].vertex.save_dl_ode = save_dl
@@ -268,31 +274,34 @@ class IPFTree(torch.nn.Module):
                 del dic
                 self.clear()
 
-    def save_data_root(self, epsilon, dynamics):
-        """Saves in self.data_root the samples that are located in the ODE/SDE cacheloader of the root."""
-        if dynamics == 'sde':
-            root_cache_dl = self.tree.graph[0].vertex.cache_dl_to_save_sde
-        elif dynamics == 'ode':
-            root_cache_dl = self.tree.graph[0].vertex.cache_dl_to_save_ode
+    def save_barycenter_data(self, epsilon, dynamics):
+        """Saves in self.barycenter_data the samples that are located in the ODE/SDE cacheloader of the barycenter."""
+        bar_id = self.barycenter_vertex
 
-        len_dataloader = self.tree.graph[0].vertex.nb_samples // self.args.cache_npar
+        if dynamics == 'sde':
+            root_cache_dl = self.tree.graph[bar_id].vertex.cache_dl_to_save_sde
+        elif dynamics == 'ode':
+            root_cache_dl = self.tree.graph[bar_id].vertex.cache_dl_to_save_ode
+
+        len_dataloader = self.tree.graph[bar_id].vertex.nb_samples // self.args.cache_npar
         for _ in range(len_dataloader):
             batch = next(root_cache_dl)[0]
-            self.data_root = torch.cat((self.data_root, batch), dim=0)
+            self.barycenter_data = torch.cat((self.barycenter_data, batch), dim=0)
             del batch
-        torch.save(self.data_root.cpu(), 'data_root_epsilon={:.3f}_{}.pt'.format(epsilon, dynamics))
+        torch.save(self.barycenter_data.cpu(), 'barycenter_data_epsilon={:.3f}_{}.pt'.format(epsilon, dynamics))
 
         # save BW2-UVP in case of Gaussian or Posterior setting
         if self.dataset_tag == DATASET_POSTERIOR or self.dataset_tag == DATASET_GAUSSIAN:
-            print('BW2_UVP criterion with {}:{:.5f}'.format(dynamics, BW2_UVP(self.data_root.cpu(), self.mean_ideal,
-                                                                              self.cov_ideal)))
+            print('BW2_UVP criterion with {}: {:.5f}'.format(dynamics, BW2_UVP(self.barycenter_data.cpu(),
+                                                                               self.mean_ideal,
+                                                                               self.cov_ideal)))
 
-        batch = next(self.tree.graph[0].vertex.cache_dl)[0]
-        self.data_root = torch.zeros((0, *batch[0].shape)).to(self.device)
+        batch = next(root_cache_dl)[0]
+        self.barycenter_data = torch.zeros((0, *batch[0].shape)).to(self.device)
         del batch
         self.clear()
 
-    def save_along_reversed_path(self, rev_path_queue, n, i, test_with_corrector=False, save_root=False):
+    def save_along_reversed_path(self, rev_path_queue, n, i, test_with_corrector=False, save_barycenter=False):
         """Saves data on the vertices of the edges of rev_path_queue from SDE backward sampling (for plotting)."""
         rev_path_queue = deque(rev_path_queue)
         source_sample_index = rev_path_queue.popleft()
@@ -304,10 +313,11 @@ class IPFTree(torch.nn.Module):
 
             if not self.tree.graph[dest_sample_index].vertex.data:
                 self.tree.graph[dest_sample_index].vertex.save_dl_sde = current_rev_edge.ipf.next_dic_sde['save_dl']
-                # saving a full cache dl for the root after the training phase
-                if dest_sample_index == 0 and save_root:
+                # saving a full cache dl for the barycenter after the training phase
+                if dest_sample_index == self.barycenter_vertex and save_barycenter:
                     corrector = n > self.args.start_corrector if not test_with_corrector else True
-                    init_cache_dl = current_rev_edge.ipf.destination_vertex.cache_dl
+                    init_vertex = current_rev_edge.ipf.source_vertex if sample_direction == 'f' else current_rev_edge.ipf.destination_vertex
+                    init_cache_dl = init_vertex.cache_dl
                     current_rev_edge.ipf.update_cacheloaders(init_cache_dl,
                                                              sample_direction,
                                                              True,
@@ -317,13 +327,16 @@ class IPFTree(torch.nn.Module):
                                                              self.args.schedule_SDE,
                                                              self.args.coeff_schedule_SDE,
                                                              sample=True)
-                    self.tree.graph[0].vertex.cache_dl_to_save_sde = current_rev_edge.ipf.next_vertex_dic['cache_dl']
+                    self.tree.graph[self.barycenter_vertex].vertex.cache_dl_to_save_sde = \
+                        current_rev_edge.ipf.next_vertex_dic['cache_dl']
+                    self.tree.graph[self.barycenter_vertex].vertex.nb_samples = current_rev_edge.ipf.next_vertex_dic[
+                        'nb_samples']
                     del init_cache_dl
             del current_rev_edge
             self.clear()
             source_sample_index = dest_sample_index
 
-    def save_along_forward_path(self, path_queue, n, i, test_with_corrector=False, save_root=False):
+    def save_along_forward_path(self, path_queue, n, i, test_with_corrector=False, save_barycenter=False):
         """Saves data on the vertices of the edges of path_queue from ODE forward sampling (for plotting)."""
         path_queue = deque(path_queue)
         source_sample_index = path_queue.popleft()
@@ -334,10 +347,11 @@ class IPFTree(torch.nn.Module):
             current_edge.ipf.ipf_save_with_ode(sample_direction, n, i, test_with_corrector)
             if not self.tree.graph[dest_sample_index].vertex.data:
                 self.tree.graph[dest_sample_index].vertex.save_dl_ode = current_edge.ipf.next_dic_ode['save_dl']
-                # saving a full cache dl for the root after the training phase
-                if dest_sample_index == 0 and save_root:
+                # saving a full cache dl for the barycenter after the training phase
+                if dest_sample_index == self.barycenter_vertex and save_barycenter:
                     corrector = n > self.args.start_corrector if not test_with_corrector else True
-                    init_cache_dl = current_edge.ipf.source_vertex.cache_dl
+                    init_vertex = current_edge.ipf.source_vertex if sample_direction == 'f' else current_edge.ipf.destination_vertex
+                    init_cache_dl = init_vertex.cache_dl
                     current_edge.ipf.update_cacheloaders(init_cache_dl,
                                                          sample_direction,
                                                          True,
@@ -347,7 +361,10 @@ class IPFTree(torch.nn.Module):
                                                          self.args.schedule_ODE,
                                                          self.args.coeff_schedule_ODE,
                                                          sample=True)
-                    self.tree.graph[0].vertex.cache_dl_to_save_ode = current_edge.ipf.next_vertex_dic['cache_dl']
+                    self.tree.graph[self.barycenter_vertex].vertex.cache_dl_to_save_ode = \
+                        current_edge.ipf.next_vertex_dic['cache_dl']
+                    self.tree.graph[self.barycenter_vertex].vertex.nb_samples = current_edge.ipf.next_vertex_dic[
+                        'nb_samples']
                     del init_cache_dl
             del current_edge
             self.clear()
@@ -454,7 +471,6 @@ class IPFTreeSequential(IPFTree):
 
             print('IPF ITERATION: ' + str(n) + '/' + str(start_n_ipf + n_ipf))
             count_leaves = 0
-            count_back_returns = 0
             leaf_queue = deque(leaves)
             while count_leaves < self.nb_datasets:
                 current_leaf_index = self.tree.get_root()
@@ -489,26 +505,25 @@ class IPFTreeSequential(IPFTree):
                         print('SDE: Sampling from {leaf} to {root} (backward, AFTER training)'.format(
                             root=current_leaf_index,
                             leaf=next_leaf_index))
-                        self.save_along_reversed_path(reversed_path, n, self.args.num_iter, save_root=True)
+                        self.save_along_reversed_path(reversed_path, n, self.args.num_iter,
+                                                      save_barycenter=self.is_star_shaped)
                     print('---------------------------------------------------------------------------------')
                     if self.args.plot_ODE:
                         print('ODE: Sampling from {root} to {leaf} (forward, AFTER training)'.format(
                             root=current_leaf_index,
                             leaf=next_leaf_index))
-                        self.save_along_forward_path(path_between_leaves, n, self.args.num_iter, save_root=True)
+                        self.save_along_forward_path(path_between_leaves, n, self.args.num_iter,
+                                                     save_barycenter=self.is_star_shaped)
 
                 print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
-                if count_back_returns < 2 * self.args.n_back_and_return:
-                    leaf_queue.appendleft(current_leaf_index)
-                    count_back_returns += 1
-                else:
-                    leaf_queue.append(current_leaf_index)
-                    count_leaves += 1
+
+                leaf_queue.append(current_leaf_index)
+                count_leaves += 1
                 self.tree.change_root(next_leaf_index)
 
-                if not self.tree.graph[0].vertex.data:
-                    self.save_data_root(epsilon, 'sde')
-                    self.save_data_root(epsilon, 'ode')
+                if self.is_star_shaped:
+                    self.save_barycenter_data(epsilon, 'sde') if self.args.plot_SDE else None
+                    self.save_barycenter_data(epsilon, 'ode') if self.args.plot_ODE else None
                     print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
 
             all_leaves = [self.tree.get_root()] + list(self.tree.get_leaves())
@@ -524,7 +539,10 @@ class IPFTreeSequential(IPFTree):
             for j in vertex_node.edges.keys():
                 print('Edge from {source} to {dest}'.format(source=vertex, dest=j))
                 self.tree.graph[vertex].edges[j].ipf.set_time_horizon(epsilon, k_epsilon)
-                _, _ = self.tree.graph[vertex].edges[j].ipf.build_dataloader_from_forward()
+                _, dic = self.tree.graph[vertex].edges[j].ipf.build_dataloader_from_forward(plot_init=False)
+                if not self.tree.graph[j].vertex.data:
+                    self.tree.graph[j].vertex.save_dl_ode = dic['save_dl']
+                    self.tree.graph[j].vertex.save_dl_sde = dic['save_dl']
                 print('*****************************************************************')
         print('\n\n')
 
@@ -551,23 +569,23 @@ class IPFTreeSequential(IPFTree):
                                                                     leaf=next_leaf_index))
                 self.save_along_reversed_path(reversed_path, self.args.start_n_ipf, 0,
                                               test_with_corrector=self.args.test_with_corrector,
-                                              save_root=True)
+                                              save_barycenter=self.is_star_shaped)
             print('---------------------------------------------------------------------------------')
             if self.args.plot_ODE:
                 print('ODE: Sampling from {root} to {leaf}.'.format(root=current_leaf_index,
                                                                     leaf=next_leaf_index))
                 self.save_along_forward_path(path_between_leaves, self.args.start_n_ipf, 0,
                                              test_with_corrector=self.args.test_with_corrector,
-                                             save_root=True)
+                                             save_barycenter=self.is_star_shaped)
             print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
             leaf_queue.append(current_leaf_index)
             count_leaves += 1
             self.tree.change_root(next_leaf_index)
 
             # for Gaussian and posterior settings
-            if not self.tree.graph[0].vertex.data:
-                self.save_data_root(epsilon, 'sde')
-                self.save_data_root(epsilon, 'ode')
+            if self.is_star_shaped:
+                self.save_barycenter_data(epsilon, 'sde') if self.args.plot_SDE else None
+                self.save_barycenter_data(epsilon, 'ode') if self.args.plot_ODE else None
             print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
 
     def train_model(self):
@@ -577,6 +595,8 @@ class IPFTreeSequential(IPFTree):
             init_samples = torch.load(self.args.data_root_path)
         if not self.tree.graph[0].vertex.data:
             self.build_root_dataset(init_samples)
+        if self.is_star_shaped:
+            self.build_barycenter_node()
         self.train_ipf_tree(epsilon=self.args.epsilon,
                             n_ipf=self.n_ipf,
                             start_n_ipf=self.start_n_ipf,
@@ -587,6 +607,8 @@ class IPFTreeSequential(IPFTree):
         # Prepare the root dataset
         if not self.tree.graph[0].vertex.data:
             self.build_root_dataset(None)
+        if self.is_star_shaped:
+            self.build_barycenter_node()
         self.test_ipf_tree(epsilon=self.args.epsilon,
                            k_epsilon=1)
 
@@ -736,7 +758,7 @@ class IPFBase(torch.nn.Module):
             dic_destination = self.build_dataloader(data_label=self.destination_vertex.data)
         return dic_source, dic_destination
 
-    def build_dataloader_from_forward(self):
+    def build_dataloader_from_forward(self, plot_init=True):
         """Used in the initial forward pass on the tree."""
         assert self.source_vertex.save_dl_ode, 'Source data not loaded for ODE'
         assert self.source_vertex.save_dl_sde, 'Source data not loaded for SDE'
@@ -753,7 +775,7 @@ class IPFBase(torch.nn.Module):
             new_batch = copy.deepcopy(x_tot[:, -1, :]).cpu()
             x_tot_plot = x_tot.permute(1, 0, *list(range(2, shape_len))).detach()  # .cpu().numpy()
 
-            if self.args.plot:
+            if self.args.plot and plot_init:
                 self.plotter(source_samples, x_tot_plot, 0, 0, 'f', 'sde', self.epsilon, self.k_epsilon)
 
             del source_samples

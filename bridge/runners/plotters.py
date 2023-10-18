@@ -16,6 +16,7 @@ DATASET_STACKEDMNIST = 'stackedmnist'
 matplotlib.use('Agg')
 
 DPI = 200
+plt.rcParams.update({'font.size': 16})
 
 
 def make_gif(plot_paths, output_directory='./gif', gif_name='gif'):
@@ -271,7 +272,7 @@ class TwoDPlotter(object):
                         plt.title(str_title)
 
                     plot = sns.kdeplot(x=x[k, :, 0], y=x[k, :, 1], clip=[[xlim[0], xlim[1]], [ylim[0], ylim[1]]],
-                                       fill=True, thresh=0., bw_adjust=0.45, levels=150,
+                                       fill=True, thresh=0., bw_adjust=0.45, levels=250,
                                        cmap="viridis", cut=100)
                     fig = plot.get_figure()
                     fig.savefig(filename_smooth, bbox_inches='tight', transparent=True, dpi=DPI)
