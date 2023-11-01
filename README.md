@@ -36,6 +36,17 @@ We provide below barycenter plots obtained by other methods.
 |---------------------------------------------------------|-------------------------------------------------------------|-------------------------------------------------------------|
 | ![swiss_b](images/2d_free_support_exact_barycenter.png) | ![circle_f](images/2d_free_support_sinkhorn_barycenter.png) | ![moons_f](images/2d_convolutional_sinkhorn_barycenter.png) |
 
+Illustration (MNIST)
+--------------------
+
+The following plots were obtained by considering the dataset 'MNIST 6' as the first root in the training process.
+
+| MNIST 2                                                                   | MNIST 4                                                                   | MNIST 6                                                                   | *Setting*                                                      |
+|---------------------------------------------------------------------------|---------------------------------------------------------------------------|---------------------------------------------------------------------------|----------------------------------------------------------------|
+| ![mnist_2_1](images/mnist_2-4-6_epsilon=0.5/source=1,dest=3/forward.png)  | ![mnist_4_1](images/mnist_2-4-6_epsilon=0.5/source=1,dest=2/forward.png)  | ![mnist_6_1](images/mnist_2-4-6_epsilon=0.5/source=0,dest=1/backward.png) | Estimation of the **leaves** (OT reg=0.5, 10 mIPF cycles).     |
+| ![mnist_2_2](images/mnist_2-4-6_epsilon=0.5/source=1,dest=3/backward.png) | ![mnist_4_2](images/mnist_2-4-6_epsilon=0.5/source=1,dest=2/backward.png) | ![mnist_6_2](images/mnist_2-4-6_epsilon=0.5/source=0,dest=1/forward.png)  | Estimation of the **barycenter** (OT reg=0.5, 10 mIPF cycles). |
+
+
 Contributors
 ------------
 
