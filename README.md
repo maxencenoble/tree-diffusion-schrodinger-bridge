@@ -162,6 +162,21 @@ Checkpoints and sampled images will be saved to a newly created directory named 
 - Gaussian, 3 datasets - Barycenter (CPU, no plot):  `python run_free_support_barycenter.py --data gaussian`
 - Posterior, 3 datasets - Barycenter (CPU, no plot):  `python run_free_support_barycenter.py --data posterior`
 
+Citation
+------------
+
+If you use this code, please cite the following (BibTex format):
+
+``` bash
+@article{noble2024tree,
+  title={Tree-Based Diffusion Schr{\"o}dinger Bridge with Applications to Wasserstein Barycenters},
+  author={Noble, Maxence and De Bortoli, Valentin and Doucet, Arnaud and Durmus, Alain},
+  journal={Advances in Neural Information Processing Systems},
+  volume={36},
+  year={2024}
+}
+```
+
 References
 ------------
 
